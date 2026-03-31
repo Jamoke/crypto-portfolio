@@ -1,0 +1,103 @@
+# ============================================================
+#  Asset Governance — Opt-in allowlist for all trading
+#
+#  HOW IT WORKS:
+#  - Nothing trades unless it appears in an enabled category
+#  - global_blacklist overrides everything — permanently excluded
+#  - Claude reviews this monthly and emails proposed changes
+#  - You approve or deny changes via email reply
+# ============================================================
+
+# Permanently blocked — no category can override these
+global_blacklist:
+  - XRP    # Regulatory issues + community misalignment
+  - BSV    # Fork with disputed legitimacy
+  - LUNA   # Terra collapse
+  - LUNC   # Terra Luna Classic
+  - HEX    # Questionable tokenomics
+  # Add more below as needed:
+  # - TOKEN_SYMBOL
+
+# ============================================================
+#  CATEGORIES — Enable/disable entire groups
+# ============================================================
+categories:
+
+  core_infrastructure:
+    enabled: true
+    notes: "Foundational protocols with strongest track records"
+    max_allocation: 55%    # % of total portfolio
+    assets:
+      - BTC
+      - ETH
+      - WBTC   # Wrapped BTC (useful for DeFi)
+      - WETH   # Wrapped ETH
+
+  layer2_scaling:
+    enabled: true
+    notes: "L2 networks — lower gas, fast finality, aligned with scaling vision"
+    max_allocation: 20%
+    assets:
+      - ARB    # Arbitrum
+      - OP     # Optimism
+      - MATIC  # Polygon
+      - ZK     # ZKSync
+      - STRK   # Starknet
+      # Review quarterly — L2 landscape evolves fast
+
+  defi_protocols:
+    enabled: true
+    notes: "DeFi protocols with strong governance, audits, and community"
+    max_allocation: 15%
+    assets:
+      - UNI    # Uniswap
+      - AAVE   # Aave
+      - MKR    # MakerDAO / Sky
+      - CRV    # Curve
+      - BAL    # Balancer
+      # Disabled until further review:
+      # - COMP   # Compound (governance concerns)
+
+  prediction_markets:
+    enabled: true
+    notes: "Prediction market exposure via DeFi positions"
+    max_allocation: 10%
+    assets:
+      - POLY   # Polymarket
+
+  privacy_coins:
+    enabled: false   # Flip to true when you want to opt in
+    notes: "Privacy-preserving protocols — review regulatory landscape first"
+    max_allocation: 5%
+    assets:
+      - XMR    # Monero
+      - ZEC    # Zcash
+
+  emerging_l1:
+    enabled: false
+    notes: "Newer L1s — higher risk, enable when you've researched them"
+    max_allocation: 10%
+    assets: []    # Curate manually
+
+  meme_high_risk:
+    enabled: false
+    notes: "High-volatility speculative assets — manually curated only"
+    max_allocation: 5%
+    assets: []    # Never auto-populated by Claude — you add these yourself
+
+  stablecoins:
+    enabled: true
+    notes: "Used for yield farming and gas reserves — not traded directionally"
+    max_allocation: 20%    # For yield routing
+    assets:
+      - USDC
+      - DAI
+      - USDT   # Use sparingly, prefer USDC/DAI
+
+# ============================================================
+#  INDIVIDUAL OVERRIDES
+#  Force-allow or force-deny specific assets regardless of category
+# ============================================================
+overrides:
+  force_allow: []    # Allows even if category is disabled
+  force_deny: []     # Blocks even if category is enabled

@@ -1,0 +1,43 @@
+# ============================================================
+#  Risk Management Configuration
+#
+#  These rules are enforced system-wide. Individual strategies
+#  can TIGHTEN these limits but never loosen them.
+# ============================================================
+
+position_limits:
+  max_per_asset: 15%          # Max portfolio % in any single asset
+  max_per_category: 60%       # Max % in any governance category
+  max_open_trades: 8          # Max simultaneous open positions
+  max_correlated_exposure: 40%  # Max % in highly correlated assets (BTC/ETH/WBTC)
+
+stop_losses:
+  trailing_stop: 10%          # Trail price by this %; tightens as price rises
+  hard_stop: 20%              # Unconditional exit at this loss from entry
+  strategy_override: true     # Strategies can set tighter stops, not looser
+
+circuit_breakers:
+  daily_drawdown_pause: 10%   # Pause ALL trading if portfolio drops this much in 24h
+  weekly_drawdown_pause: 20%  # Pause if drops this much in 7 days
+  auto_resume: false          # Require email approval to resume after pause
+  pause_notification:
+    telegram: true
+    email: true
+    urgency: high
+
+defi_specific:
+  max_gas_per_trade_usd: 15    # Abort trade if estimated gas exceeds this
+  min_trade_size_usd: 50       # Too small = gas eats the edge
+  slippage_tolerance: 1.5%     # Max acceptable slippage on DEX swaps
+  max_single_dex_exposure: 50% # Don't route more than 50% through one DEX
+  require_protocol_audit: true # Only interact with audited protocols
+  simulation_mode_alert: true  # Alert when a trade WOULD have executed (dry-run feedback)
+
+prediction_market_limits:
+  max_portfolio_allocation: 10%
+  max_per_market: 3%
+  stop_loss_per_market: 50%   # Exit position if it loses 50%
+  max_resolution_days: 90     # Flag markets resolving >90 days out
+
+# How often to log a full risk report (seconds)
+risk_report_interval: 3600

@@ -1,0 +1,132 @@
+# ============================================================
+#  Strategy Configuration — All trading strategy parameters
+#
+#  EDITING THIS FILE:
+#  - Changes take effect on next service restart (or hot-reload interval)
+#  - Total capital_allocation across strategies should not exceed 100%
+#  - Set enabled: false to pause any strategy without removing it
+# ============================================================
+
+# How often to reload this config without restart (seconds)
+hot_reload_interval: 300
+
+# ============================================================
+#  ACTIVE STRATEGIES
+# ============================================================
+strategies:
+
+  # --- Trend-following using RSI / MACD / EMA ---
+  momentum:
+    enabled: true
+    capital_allocation: 30%
+    timeframe: 4h
+    indicators:
+      rsi:
+        period: 14
+        buy_threshold: 35      # Buy when RSI crosses above this (oversold recovery)
+        sell_threshold: 68     # Sell when RSI crosses above this (overbought)
+      ema:
+        fast_period: 12
+        slow_period: 26
+        signal_period: 9
+      macd:
+        fast: 12
+        slow: 26
+        signal: 9
+    entry_logic: "rsi_above_threshold AND ema_bullish_cross AND macd_positive"
+    exit_logic: "rsi_above_sell_threshold OR trailing_stop OR hard_stop"
+    notes: "Core trend-following. Most reliable in bull markets."
+
+  # --- Mean reversion on pullbacks ---
+  mean_reversion:
+    enabled: true
+    capital_allocation: 20%
+    timeframe: 1h
+    indicators:
+      bollinger:
+        period: 20
+        std_dev: 2.0
+      zscore:
+        lookback: 50
+        entry_threshold: -2.0    # Buy when z-score is this negative (deep pullback)
+        exit_threshold: 0.0      # Exit at mean
+    entry_logic: "price_below_lower_band AND zscore_below_threshold"
+    exit_logic: "price_above_middle_band OR zscore_above_exit"
+    notes: "Works well in ranging/sideways markets. Complements momentum."
+
+  # --- AI-driven signals from Claude analyst ---
+  claude_alpha:
+    enabled: true
+    capital_allocation: 25%
+    signal_source: claude_analyst    # Reads from Redis key: claude:signals
+    min_confidence: 0.70             # Only act on signals with >=70% confidence
+    min_signal_strength: 0.40        # Signal must be >= 0.4 (scale: -1 to +1)
+    require_technical_confirmation: true   # Must align with at least one other strategy
+    confirmation_window: 2h          # Technical signal must be within this window
+    notes: "Claude signals are strongest when confirmed by technical indicators."
+
+  # --- Systematic DCA into core assets ---
+  dca_accumulator:
+    enabled: true
+    capital_allocation: 15%
+    assets: [BTC, ETH]    # Override governance categories for DCA targets
+    schedule:
+      frequency: weekly
+      day: monday
+      time: "09:00"
+    dip_acceleration:
+      enabled: true
+      trigger_drop: -8%     # Accelerate buys when price drops this much in 24h
+      multiplier: 2.0       # Buy 2x normal amount on dips
+      max_accelerations: 3  # Maximum acceleration events per month
+    notes: "Steady accumulation regardless of market conditions."
+
+  # --- Prediction market positions via Polymarket ---
+  prediction_markets:
+    enabled: false    # Enable in Phase 4 after testing
+    capital_allocation: 10%
+    platform: polymarket
+    network: polygon
+    min_edge_percent: 5.0    # Only bet when Claude estimates >5% edge vs market odds
+    max_per_market: 3%       # Max 3% of portfolio per single market
+    min_confidence: 0.75
+    categories:              # Polymarket market categories to scan
+      - crypto
+      - technology
+      - macro_economy
+    notes: "Requires Phase 4 completion. Leave disabled until then."
+
+  # --- TradingView webhook signals ---
+  tradingview_signals:
+    enabled: true
+    mode: confirmation    # "confirmation" (default) or "independent"
+    # In confirmation mode: TV signals boost/dampen other strategy signals
+    # In independent mode: TV signals can trigger trades on their own
+    capital_allocation: 0%    # Confirmation mode has no independent allocation
+    webhook_port: 8443
+    webhook_path: /webhook
+    signal_ttl: 4h            # Ignore TV signals older than this
+    boost_factor: 1.3         # Multiply signal strength by this when TV agrees
+    dampen_factor: 0.6        # Multiply signal strength by this when TV disagrees
+    required_indicators:      # TV alert must include these to be accepted
+      - supertrend
+    notes: "Configure alerts in TradingView to POST to http://PI_IP:8443/webhook"
+
+  # --- News intelligence (Phase 5 — not yet active) ---
+  predictive_alpha:
+    enabled: false
+    capital_allocation: 15%
+    timeframe: 1h
+    sources:
+      rss_feeds:
+        - https://www.coindesk.com/arc/outboundfeeds/rss/
+        - https://theblock.co/rss.xml
+        - https://decrypt.co/feed
+      social: []      # Add Twitter/X bearer token in .env to enable
+      onchain:
+        - whale_alerts
+        - governance_votes
+    min_sentiment_score: 0.60
+    min_narrative_strength: 0.50
+    max_news_age: 30m         # Ignore news older than this
+    notes: "Phase 5. Leave disabled until news pipeline is built."

@@ -1,0 +1,51 @@
+# ============================================================
+#  DeFi Yield Routing Configuration
+#
+#  Idle capital (not in active positions) is automatically
+#  routed to yield-generating protocols.
+# ============================================================
+
+yield_routing:
+  enabled: false          # Enable in Phase 3 when going live
+  check_interval: 3600    # Check for better yield opportunities every hour
+  min_apy_threshold: 2.0  # Don't route if best available APY is below this
+  rebalance_threshold: 1.5 # Move funds if a better option is >= this much higher
+  gas_cost_buffer: 1.2    # Require 1.2x gas cost in expected daily yield before routing
+
+  # Chains to use for yield (Polygon has cheapest gas)
+  preferred_chains:
+    - polygon    # First choice: cheap gas
+    - arbitrum   # Second choice: good yields, low gas
+    - ethereum   # Fallback only: expensive gas
+
+  protocols:
+
+    yearn_v3:
+      enabled: false    # Enable in Phase 3
+      priority: 1       # Try this first
+      max_allocation: 60%
+      chains: [arbitrum, ethereum]
+      notes: "Auto-compounding vaults. Battle-tested since 2020."
+      min_tvl_usd: 10_000_000    # Only use vaults with >$10M TVL
+
+    aave_v3:
+      enabled: false    # Enable in Phase 3
+      priority: 2
+      max_allocation: 40%
+      chains: [polygon, arbitrum, ethereum]
+      assets: [USDC, DAI, ETH, WETH]    # Only supply these assets
+      notes: "Overcollateralized lending. Very safe, lower yields."
+      min_tvl_usd: 50_000_000
+
+    compound_v3:
+      enabled: false
+      priority: 3
+      max_allocation: 30%
+      chains: [ethereum, arbitrum]
+      notes: "Disabled by default. Enable if yields are compelling."
+
+  risk_limits:
+    max_single_protocol: 60%
+    max_single_chain: 70%
+    require_audit: true
+    auto_withdraw_on_exploit_alert: true  # Pulls funds on CertiK/Rekt alerts

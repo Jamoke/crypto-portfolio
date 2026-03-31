@@ -1,0 +1,13 @@
+# NEVER commit these
+.env
+*.key
+*.pem
+*.p12
+freqtrade/user_data/logs/
+freqtrade/user_data/backtest_results/
+freqtrade/user_data/plot/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+node_modules/

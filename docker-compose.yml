@@ -1,0 +1,203 @@
+version: "3.9"
+
+# ============================================================
+#  Crypto Portfolio — Docker Compose
+#  All services run on Raspberry Pi 5 (8GB)
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # Freqtrade — Strategy & signal engine (DRY-RUN mode)
+  # Generates buy/sell signals; DeFi executor handles actual trades
+  # ----------------------------------------------------------
+  freqtrade:
+    image: freqtradeorg/freqtrade:stable
+    container_name: freqtrade
+    restart: unless-stopped
+    volumes:
+      - ./freqtrade/user_data:/freqtrade/user_data
+      - ./freqtrade/strategies:/freqtrade/user_data/strategies
+      - ./freqtrade/config.json:/freqtrade/config.json
+    command: >
+      trade
+      --config /freqtrade/config.json
+      --strategy MomentumStrategy
+      --dry-run
+    environment:
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Redis — Lightweight message queue between services
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Claude Analyst — AI market analysis every 6 hours
+  # Reads signals from Redis, writes analysis back
+  # ----------------------------------------------------------
+  claude_analyst:
+    build: ./services/claude_analyst
+    container_name: claude_analyst
+    restart: unless-stopped
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - COINGECKO_API_KEY=${COINGECKO_API_KEY:-}
+      - LUNARCRUSH_API_KEY=${LUNARCRUSH_API_KEY:-}
+      - REDIS_URL=redis://redis:6379
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+    volumes:
+      - ./config:/app/config:ro
+      - analyst_logs:/app/logs
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Asset Governor — Enforces allowlist and allocation limits
+  # All other services query it before acting
+  # ----------------------------------------------------------
+  asset_governor:
+    build: ./services/asset_governor
+    container_name: asset_governor
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./config:/app/config:ro
+    ports:
+      - "8090:8090"   # Internal REST API
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # TradingView Bridge — Webhook listener for TV alerts
+  # Exposes port 8443 for incoming webhook POSTs
+  # ----------------------------------------------------------
+  tv_bridge:
+    build: ./services/tv_bridge
+    container_name: tv_bridge
+    restart: unless-stopped
+    environment:
+      - TV_WEBHOOK_SECRET=${TV_WEBHOOK_SECRET}
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./config:/app/config:ro
+    ports:
+      - "8443:8443"   # TradingView posts here
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # DeFi Executor — Translates signals to on-chain transactions
+  # Polygon + Arbitrum via 1inch aggregator
+  # Phase 1: runs in simulation mode (no real transactions)
+  # ----------------------------------------------------------
+  defi_executor:
+    build: ./services/defi_executor
+    container_name: defi_executor
+    restart: unless-stopped
+    environment:
+      - WALLET_ADDRESS=${WALLET_ADDRESS}
+      - POLYGON_RPC_URL=${POLYGON_RPC_URL}
+      - ARBITRUM_RPC_URL=${ARBITRUM_RPC_URL}
+      - ONEINCH_API_KEY=${ONEINCH_API_KEY:-}
+      - REDIS_URL=redis://redis:6379
+      - SIMULATION_MODE=${SIMULATION_MODE:-true}   # true = no real transactions
+    volumes:
+      - ./config:/app/config:ro
+      - executor_logs:/app/logs
+    depends_on:
+      - redis
+      - asset_governor
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Email Digest — Daily summary + approval system
+  # ----------------------------------------------------------
+  email_digest:
+    build: ./services/email_digest
+    container_name: email_digest
+    restart: unless-stopped
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - DIGEST_RECIPIENT=${DIGEST_RECIPIENT}
+      - DIGEST_HOUR=${DIGEST_HOUR:-8}    # Send at 8 AM local time
+      - DIGEST_SECRET=${DIGEST_SECRET}   # Used to sign approval emails
+      - REDIS_URL=redis://redis:6379
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+    volumes:
+      - ./config:/app/config:ro
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Grafana — Portfolio monitoring dashboard
+  # ----------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-changeme}
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    ports:
+      - "3000:3000"
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Prometheus — Metrics collection for Grafana
+  # ----------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - portfolio_net
+
+volumes:
+  redis_data:
+  grafana_data:
+  prometheus_data:
+  analyst_logs:
+  executor_logs:
+
+networks:
+  portfolio_net:
+    driver: bridge
