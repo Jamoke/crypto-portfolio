@@ -13,9 +13,15 @@ All parameters are read from strategy_config.yaml at startup.
 """
 
 import yaml
-import redis
 import json
 import logging
+
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    redis = None  # type: ignore
 from datetime import datetime
 from pathlib import Path
 from freqtrade.strategy import IStrategy, DecimalParameter, IntParameter
@@ -80,11 +86,14 @@ class MomentumStrategy(IStrategy):
 
         # Redis connection for publishing signals
         self._redis = None
-        try:
-            self._redis = redis.from_url("redis://redis:6379", decode_responses=True)
-            logger.info("Connected to Redis for signal publishing")
-        except Exception as e:
-            logger.warning(f"Redis unavailable: {e}. Signals will not be published.")
+        if REDIS_AVAILABLE:
+            try:
+                self._redis = redis.from_url("redis://redis:6379", decode_responses=True)
+                logger.info("Connected to Redis for signal publishing")
+            except Exception as e:
+                logger.warning(f"Redis unavailable: {e}. Signals will not be published.")
+        else:
+            logger.warning("redis package not installed. Signal publishing disabled.")
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """Calculate all technical indicators."""

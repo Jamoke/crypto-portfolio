@@ -76,56 +76,72 @@ def get_allowed_symbols() -> dict:
 
 @app.route("/check")
 def check_symbol():
-    symbol = request.args.get("symbol", "").upper()
-    if not symbol:
-        return jsonify({"error": "symbol required"}), 400
+    try:
+        symbol = request.args.get("symbol", "").upper()
+        if not symbol:
+            return jsonify({"error": "symbol required"}), 400
 
-    blacklist = get_blacklist()
-    if symbol in blacklist:
-        return jsonify({"allowed": False, "reason": "global_blacklist", "symbol": symbol})
+        blacklist = get_blacklist()
+        if symbol in blacklist:
+            return jsonify({"allowed": False, "reason": "global_blacklist", "symbol": symbol}), 200
 
-    allowed = get_allowed_symbols()
-    if symbol in allowed:
-        info = allowed[symbol]
+        allowed = get_allowed_symbols()
+        if symbol in allowed:
+            info = allowed[symbol]
+            return jsonify({
+                "allowed": True,
+                "symbol": symbol,
+                "category": info["category"],
+                "max_allocation": info["max_allocation"],
+            }), 200
+
         return jsonify({
-            "allowed": True,
+            "allowed": False,
+            "reason": "not_in_allowlist",
             "symbol": symbol,
-            "category": info["category"],
-            "max_allocation": info["max_allocation"],
-        })
-
-    return jsonify({
-        "allowed": False,
-        "reason": "not_in_allowlist",
-        "symbol": symbol,
-        "hint": "Add to an enabled category in asset_governance.yaml",
-    })
+            "hint": "Add to an enabled category in asset_governance.yaml",
+        }), 200
+    except Exception as e:
+        logger.error(f"/check error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/allowed_symbols")
 def allowed_symbols():
-    allowed = get_allowed_symbols()
-    return jsonify({
-        "symbols": list(allowed.keys()),
-        "count": len(allowed),
-        "details": allowed,
-    })
+    try:
+        allowed = get_allowed_symbols()
+        return jsonify({
+            "symbols": list(allowed.keys()),
+            "count": len(allowed),
+            "details": allowed,
+        }), 200
+    except Exception as e:
+        logger.error(f"/allowed_symbols error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/reload", methods=["POST"])
 def reload_config():
-    load_governance()
-    allowed = get_allowed_symbols()
-    return jsonify({
-        "status": "reloaded",
-        "allowed_count": len(allowed),
-        "symbols": list(allowed.keys()),
-    })
+    try:
+        load_governance()
+        allowed = get_allowed_symbols()
+        return jsonify({
+            "status": "reloaded",
+            "allowed_count": len(allowed),
+            "symbols": list(allowed.keys()),
+        }), 200
+    except Exception as e:
+        logger.error(f"/reload error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "loaded": bool(_governance)})
+    try:
+        return jsonify({"status": "ok", "loaded": bool(_governance)}), 200
+    except Exception as e:
+        logger.error(f"/health error: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
 
 
 if __name__ == "__main__":

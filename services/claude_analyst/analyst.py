@@ -71,6 +71,16 @@ def fetch_coingecko_data(symbols: list[str]) -> dict:
 
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=10)
+        if resp.status_code == 401:
+            if not COINGECKO_API_KEY:
+                logger.error(
+                    "CoinGecko returned 401 Unauthorized. A free API key is now required. "
+                    "Sign up at https://www.coingecko.com/api and add "
+                    "COINGECKO_API_KEY=your_key to your .env file, then restart."
+                )
+            else:
+                logger.error("CoinGecko 401: API key may be invalid. Check COINGECKO_API_KEY in .env.")
+            return {}
         resp.raise_for_status()
         data = resp.json()
         # Index by symbol
@@ -211,6 +221,13 @@ def run_analysis_cycle():
     market_data = fetch_coingecko_data(tradeable)
     tv_signals = get_tradingview_signals()
     ft_signals = get_freqtrade_signals()
+
+    if not market_data and not tv_signals and not ft_signals:
+        logger.warning(
+            "No market data or signals available — skipping Claude API call to conserve credits. "
+            "Check COINGECKO_API_KEY in .env and ensure other services are running."
+        )
+        return
 
     analysis = run_claude_analysis(market_data, tv_signals, ft_signals)
     publish_signals(analysis)
