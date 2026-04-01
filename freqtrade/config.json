@@ -29,7 +29,7 @@
     },
 
     "exchange": {
-        "name": "kraken",
+        "name": "binance",
         "key": "",
         "secret": "",
         "ccxt_config": {},
