@@ -73,7 +73,7 @@
         "enable_openapi": true,
         "jwt_secret_key": "scalp_bot_change_this_to_a_long_secret",
         "ws_token": "scalp_ws_token_change_this_to_random",
-        "CORS_origins": ["http://localhost:3000", "http://192.168.50.152:3000"],
+        "CORS_origins": ["http://localhost:3000", "http://192.168.50.152:3000", "http://192.168.50.152:8080", "http://localhost:8080"],
         "username": "admin",
         "password": "changeme"
     },

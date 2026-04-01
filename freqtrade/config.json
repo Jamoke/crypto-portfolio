@@ -71,7 +71,7 @@
         "enable_openapi": true,
         "jwt_secret_key": "change_this_to_a_long_random_secret_key",
         "ws_token": "change_this_ws_token_to_something_random",
-        "CORS_origins": ["http://localhost:3000", "http://192.168.50.152:3000"],
+        "CORS_origins": ["http://localhost:3000", "http://192.168.50.152:3000", "http://192.168.50.152:8081", "http://localhost:8081"],
         "username": "admin",
         "password": "changeme"
     },
