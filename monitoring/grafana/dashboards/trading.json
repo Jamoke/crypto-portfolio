@@ -1,0 +1,138 @@
+{
+  "title": "Crypto Portfolio",
+  "uid": "crypto-portfolio-main",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Total Trades",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+      "targets": [{ "expr": "crypto_trades_total", "legendFormat": "Trades",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto",
+        "textMode": "auto", "colorMode": "background" }
+    },
+    {
+      "id": 2, "type": "stat", "title": "Realized P&L (USD)",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": null },
+          { "color": "green", "value": 0 }
+        ] } } },
+      "targets": [{ "expr": "crypto_realized_pnl_usd_total",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 3, "type": "stat", "title": "Win Rate",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "percentunit",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": 0 },
+          { "color": "yellow", "value": 0.4 },
+          { "color": "green", "value": 0.6 }
+        ] } } },
+      "targets": [{ "expr": "crypto_winning_trades / (crypto_winning_trades + crypto_losing_trades)",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 4, "type": "stat", "title": "Gas Spent (USD)",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "fixed", "fixedColor": "orange" } } },
+      "targets": [{ "expr": "crypto_gas_spent_usd_total",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 5, "type": "stat", "title": "Winning Trades",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
+      "targets": [{ "expr": "crypto_winning_trades",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 6, "type": "stat", "title": "Losing Trades",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
+      "targets": [{ "expr": "crypto_losing_trades",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Realized P&L Over Time",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "palette-classic" },
+        "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [{ "expr": "crypto_realized_pnl_usd_total",
+        "legendFormat": "Realized P&L",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Gas Costs Over Time",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "fixed", "fixedColor": "orange" },
+        "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [{ "expr": "crypto_gas_spent_usd_total",
+        "legendFormat": "Gas Spent",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }]
+    },
+    {
+      "id": 9, "type": "bargauge", "title": "Current Positions — Invested USD",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "palette-classic" },
+        "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+      "targets": [{ "expr": "crypto_position_invested_usd",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal", "displayMode": "gradient",
+        "valueMode": "color" }
+    },
+    {
+      "id": 10, "type": "bargauge", "title": "Current Positions — Avg Cost Basis (USD)",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "palette-classic" } } },
+      "targets": [{ "expr": "crypto_position_avg_cost_usd",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal", "displayMode": "gradient" }
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Trade Volume — Wins vs Losses",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 6 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 } } },
+      "targets": [
+        { "expr": "crypto_winning_trades", "legendFormat": "Winning Trades",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
+        { "expr": "crypto_losing_trades", "legendFormat": "Losing Trades",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [{
+      "name": "DS_PROMETHEUS", "type": "datasource", "pluginId": "prometheus",
+      "hide": 2, "current": { "text": "Prometheus", "value": "Prometheus" }
+    }]
+  }
+}

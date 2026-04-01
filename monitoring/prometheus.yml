@@ -25,3 +25,8 @@ scrape_configs:
     static_configs:
       - targets: ["tv_bridge:8443"]
     metrics_path: /health
+
+  - job_name: "defi_executor"
+    static_configs:
+      - targets: ["defi_executor:8091"]
+    metrics_path: /metrics

@@ -145,14 +145,24 @@ services:
     restart: unless-stopped
     environment:
       - WALLET_ADDRESS=${WALLET_ADDRESS}
+      - WALLET_PRIVATE_KEY=${WALLET_PRIVATE_KEY}   # required for live mode
       - POLYGON_RPC_URL=${POLYGON_RPC_URL}
       - ARBITRUM_RPC_URL=${ARBITRUM_RPC_URL}
       - ONEINCH_API_KEY=${ONEINCH_API_KEY:-}
       - REDIS_URL=redis://redis:6379
-      - SIMULATION_MODE=${SIMULATION_MODE:-true}   # true = no real transactions
+      - SIMULATION_MODE=${SIMULATION_MODE:-true}   # flip to false for live trading
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - DIGEST_RECIPIENT=${DIGEST_RECIPIENT}
+      - TZ=${TIMEZONE:-America/Chicago}
     volumes:
       - ./config:/app/config:ro
       - executor_logs:/app/logs
+      - trade_db:/app/data           # SQLite trade database (persistent)
+    ports:
+      - "8091:8091"                  # Metrics + trade API
     depends_on:
       - redis
       - asset_governor
@@ -197,7 +207,8 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning   # auto-configure datasource + dashboards
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards   # dashboard JSON files
     ports:
       - "3000:3000"
     networks:
@@ -225,6 +236,7 @@ volumes:
   analyst_logs:
   executor_logs:
   freqtrade_scalp_data:
+  trade_db:
 
 networks:
   portfolio_net:
