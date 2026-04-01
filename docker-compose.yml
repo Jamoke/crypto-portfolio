@@ -34,6 +34,33 @@ services:
       - portfolio_net
 
   # ----------------------------------------------------------
+  # Freqtrade Scalp Bot — High-frequency 5m strategy
+  # Separate instance, isolated $1000 dry-run wallet, port 8081
+  # Pairs: SOL, ADA, LTC, DOGE, LINK, POL, SAND
+  # ----------------------------------------------------------
+  freqtrade_scalp:
+    image: freqtradeorg/freqtrade:stable
+    container_name: freqtrade_scalp
+    restart: unless-stopped
+    volumes:
+      - freqtrade_scalp_data:/freqtrade/user_data
+      - ./freqtrade/strategies:/freqtrade/user_data/strategies
+      - ./freqtrade/config_scalp.json:/freqtrade/config.json
+    command: >
+      trade
+      --config /freqtrade/config.json
+      --strategy ScalpStrategy
+      --dry-run
+    environment:
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
   # Redis — Lightweight message queue between services
   # ----------------------------------------------------------
   redis:
@@ -197,6 +224,7 @@ volumes:
   prometheus_data:
   analyst_logs:
   executor_logs:
+  freqtrade_scalp_data:
 
 networks:
   portfolio_net:

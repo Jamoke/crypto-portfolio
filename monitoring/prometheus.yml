@@ -8,6 +8,11 @@ scrape_configs:
       - targets: ["freqtrade:8080"]
     metrics_path: /api/v1/health
 
+  - job_name: "freqtrade_scalp"
+    static_configs:
+      - targets: ["freqtrade_scalp:8081"]
+    metrics_path: /api/v1/health
+
   # Redis does not speak HTTP — monitor it via the asset_governor /health endpoint instead.
   # Scraping redis:6379 directly triggers Redis's cross-protocol attack detection.
 

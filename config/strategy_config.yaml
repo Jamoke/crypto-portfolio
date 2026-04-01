@@ -112,6 +112,41 @@ strategies:
       - supertrend
     notes: "Configure alerts in TradingView to POST to http://PI_IP:8443/webhook"
 
+  # --- High-frequency 5m scalp strategy (separate bot instance) ---
+  scalp:
+    enabled: true
+    capital_allocation: 100%   # This bot has its own isolated $1000 wallet
+    timeframe: 5m
+    pairs:
+      - SOL/USDC
+      - ADA/USDC
+      - LTC/USDC
+      - DOGE/USDC
+      - LINK/USDC
+      - POL/USDC
+      - SAND/USDC
+      # Uncomment to add after review:
+      # - BNB/USDC    # CEX token — values review recommended
+      # - TRX/USDC    # Tron — community controversy
+    indicators:
+      bb:
+        period: 20
+        std_dev: 2.0
+      rsi:
+        period: 14
+        buy_threshold: 32      # Tighter than momentum — only deep oversold
+        sell_threshold: 68
+      stoch:
+        fastk_period: 14
+        fastd_period: 3
+    risk:
+      stoploss: -2%
+      trailing_stop: 1%
+      trailing_offset: 1.5%
+      max_open_trades: 5
+      stake_amount_usd: 100    # Fixed $100 per trade (10% of $1000 wallet)
+    notes: "Isolated scalp bot on port 8081. Separate dry-run wallet."
+
   # --- News intelligence (Phase 5 — not yet active) ---
   predictive_alpha:
     enabled: false

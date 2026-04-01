@@ -79,6 +79,22 @@ categories:
     max_allocation: 10%
     assets: []    # Curate manually
 
+  high_volatility_scalp:
+    enabled: true
+    notes: "Higher-volatility alts for the scalp bot. Shorter holds, tighter stops. Review monthly."
+    max_allocation: 15%
+    assets:
+      - SOL    # Solana — high liquidity, volatile
+      - ADA    # Cardano
+      - LTC    # Litecoin — battle-tested, good liquidity
+      - DOGE   # High retail volume, useful for scalp
+      - LINK   # Chainlink — strong fundamentals
+      - POL    # Polygon (rebranded MATIC) — same token, new ticker
+      - SAND   # The Sandbox — gaming/metaverse exposure
+      # Review before enabling:
+      # - BNB  # Binance token — centralized exchange risk, values misalignment
+      # - TRX  # Tron / Justin Sun — community controversy, evaluate carefully
+
   meme_high_risk:
     enabled: false
     notes: "High-volatility speculative assets — manually curated only"
