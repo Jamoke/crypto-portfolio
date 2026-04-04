@@ -142,8 +142,6 @@ def scrape_bot(bot_name: str, base_url: str):
     """Scrape all metrics from one Freqtrade bot instance."""
     try:
         # ── Open trades ───────────────────────────────────────────────────────
-        # First clear old pair-level gauges (pairs may have closed)
-        open_trades.remove(bot_name)  # This will fail silently if label isn't tracked
         status = ft_get(bot_name, base_url, "/status")
         if isinstance(status, list):
             seen_pairs = set()
@@ -153,6 +151,12 @@ def scrape_bot(bot_name: str, base_url: str):
                 open_trades.labels(bot=bot_name, pair=pair).set(1)
                 trade_profit_pct.labels(bot=bot_name, pair=pair).set(profit)
                 seen_pairs.add(pair)
+            # Remove gauges for pairs that are no longer open
+            for sample in list(open_trades._metrics.keys()):
+                s_bot, s_pair = sample
+                if s_bot == bot_name and s_pair not in seen_pairs:
+                    open_trades.remove(s_bot, s_pair)
+                    trade_profit_pct.remove(s_bot, s_pair)
 
         # ── Profit summary ────────────────────────────────────────────────────
         profit_data = ft_get(bot_name, base_url, "/profit")
