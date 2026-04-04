@@ -192,6 +192,7 @@ def scrape_loop():
     while True:
         for bot_name, base_url in BOTS.items():
             scrape_bot(bot_name, base_url)
+        logger.info(f"Scrape complete for {list(BOTS.keys())}. Next in {SCRAPE_INTERVAL}s.")
         time.sleep(SCRAPE_INTERVAL)
 
 
