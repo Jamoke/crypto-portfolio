@@ -94,7 +94,7 @@ def get_token(bot_name: str, base_url: str) -> str | None:
     try:
         resp = requests.post(
             f"{base_url}/api/v1/token/login",
-            json={"username": FREQTRADE_USERNAME, "password": FREQTRADE_PASSWORD},
+            auth=(FREQTRADE_USERNAME, FREQTRADE_PASSWORD),
             timeout=5,
         )
         if resp.status_code == 200:
