@@ -19,12 +19,14 @@ services:
       - ./freqtrade/user_data:/freqtrade/user_data
       - ./freqtrade/strategies:/freqtrade/user_data/strategies
       - ./freqtrade/config.json:/freqtrade/config.json
-    command: >
-      trade
-      --config /freqtrade/config.json
-      --strategy MomentumStrategy
-      --dry-run
-      --env-vars
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      python3 -c '
+      import os, re
+      c = open("/freqtrade/config.json").read()
+      c = re.sub(r"\$\{([A-Z0-9_]+)\}", lambda m: os.environ.get(m.group(1), m.group(0)), c)
+      open("/tmp/cfg.json", "w").write(c)
+      ' && exec freqtrade trade --config /tmp/cfg.json --strategy MomentumStrategy --dry-run
     environment:
       - TZ=${TIMEZONE:-America/Los_Angeles}
       - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}
@@ -52,12 +54,14 @@ services:
       - freqtrade_scalp_data:/freqtrade/user_data
       - ./freqtrade/strategies:/freqtrade/user_data/strategies
       - ./freqtrade/config_scalp.json:/freqtrade/config.json
-    command: >
-      trade
-      --config /freqtrade/config.json
-      --strategy ScalpStrategy
-      --dry-run
-      --env-vars
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      python3 -c '
+      import os, re
+      c = open("/freqtrade/config.json").read()
+      c = re.sub(r"\$\{([A-Z0-9_]+)\}", lambda m: os.environ.get(m.group(1), m.group(0)), c)
+      open("/tmp/cfg.json", "w").write(c)
+      ' && exec freqtrade trade --config /tmp/cfg.json --strategy ScalpStrategy --dry-run
     environment:
       - TZ=${TIMEZONE:-America/Los_Angeles}
       - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}
@@ -269,12 +273,14 @@ services:
       - freqtrade_freqai_data:/freqtrade/user_data
       - ./freqtrade/strategies:/freqtrade/user_data/strategies
       - ./freqtrade/config_freqai.json:/freqtrade/config.json
-    command: >
-      trade
-      --config /freqtrade/config.json
-      --strategy FreqAIStrategy
-      --dry-run
-      --env-vars
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      python3 -c '
+      import os, re
+      c = open("/freqtrade/config.json").read()
+      c = re.sub(r"\$\{([A-Z0-9_]+)\}", lambda m: os.environ.get(m.group(1), m.group(0)), c)
+      open("/tmp/cfg.json", "w").write(c)
+      ' && exec freqtrade trade --config /tmp/cfg.json --strategy FreqAIStrategy --dry-run
     environment:
       - TZ=${TIMEZONE:-America/Los_Angeles}
       - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}

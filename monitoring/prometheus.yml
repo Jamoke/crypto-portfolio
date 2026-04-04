@@ -3,28 +3,10 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: "freqtrade"
-    static_configs:
-      - targets: ["freqtrade:8080"]
-    metrics_path: /api/v1/health
-
-  - job_name: "freqtrade_scalp"
-    static_configs:
-      - targets: ["freqtrade_scalp:8081"]
-    metrics_path: /api/v1/health
-
-  # Redis does not speak HTTP — monitor it via the asset_governor /health endpoint instead.
-  # Scraping redis:6379 directly triggers Redis's cross-protocol attack detection.
-
-  - job_name: "asset_governor"
-    static_configs:
-      - targets: ["asset_governor:8090"]
-    metrics_path: /health
-
-  - job_name: "tv_bridge"
-    static_configs:
-      - targets: ["tv_bridge:8443"]
-    metrics_path: /health
+  # freqtrade bots are scraped via freqtrade_exporter (see below) — their
+  # /api/v1/health endpoints return JSON, not Prometheus format.
+  # asset_governor /health and tv_bridge /health are also JSON-only.
+  # All Prometheus metrics come from the dedicated exporter services.
 
   - job_name: "defi_executor"
     static_configs:
