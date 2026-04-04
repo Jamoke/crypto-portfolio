@@ -2,13 +2,16 @@
   "title": "Crypto Portfolio",
   "uid": "crypto-portfolio-main",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": { "from": "now-24h", "to": "now" },
   "panels": [
+
+    { "type": "row", "id": 100, "title": "Portfolio Overview", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false },
+
     {
       "id": 1, "type": "stat", "title": "Total Trades",
-      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "gridPos": { "x": 0, "y": 1, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
       "targets": [{ "expr": "crypto_trades_total", "legendFormat": "Trades",
@@ -18,7 +21,7 @@
     },
     {
       "id": 2, "type": "stat", "title": "Realized P&L (USD)",
-      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "gridPos": { "x": 4, "y": 1, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD",
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [
@@ -32,7 +35,7 @@
     },
     {
       "id": 3, "type": "stat", "title": "Win Rate",
-      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "gridPos": { "x": 8, "y": 1, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "unit": "percentunit",
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [
@@ -47,7 +50,7 @@
     },
     {
       "id": 4, "type": "stat", "title": "Gas Spent (USD)",
-      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "gridPos": { "x": 12, "y": 1, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD",
         "color": { "mode": "fixed", "fixedColor": "orange" } } },
       "targets": [{ "expr": "crypto_gas_spent_usd_total",
@@ -57,7 +60,7 @@
     },
     {
       "id": 5, "type": "stat", "title": "Winning Trades",
-      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "gridPos": { "x": 16, "y": 1, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
       "targets": [{ "expr": "crypto_winning_trades",
         "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
@@ -66,7 +69,7 @@
     },
     {
       "id": 6, "type": "stat", "title": "Losing Trades",
-      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "gridPos": { "x": 20, "y": 1, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
       "targets": [{ "expr": "crypto_losing_trades",
         "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
@@ -75,7 +78,7 @@
     },
     {
       "id": 7, "type": "timeseries", "title": "Realized P&L Over Time",
-      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD",
         "color": { "mode": "palette-classic" },
         "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
@@ -85,7 +88,7 @@
     },
     {
       "id": 8, "type": "timeseries", "title": "Gas Costs Over Time",
-      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD",
         "color": { "mode": "fixed", "fixedColor": "orange" },
         "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
@@ -95,7 +98,7 @@
     },
     {
       "id": 9, "type": "bargauge", "title": "Current Positions — Invested USD",
-      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD",
         "color": { "mode": "palette-classic" },
         "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
@@ -103,12 +106,11 @@
         "legendFormat": "{{symbol}}",
         "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "horizontal", "displayMode": "gradient",
-        "valueMode": "color" }
+        "orientation": "horizontal", "displayMode": "gradient", "valueMode": "color" }
     },
     {
       "id": 10, "type": "bargauge", "title": "Current Positions — Avg Cost Basis (USD)",
-      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD",
         "color": { "mode": "palette-classic" } } },
       "targets": [{ "expr": "crypto_position_avg_cost_usd",
@@ -119,7 +121,7 @@
     },
     {
       "id": 11, "type": "timeseries", "title": "Trade Volume — Wins vs Losses",
-      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 6 },
+      "gridPos": { "x": 0, "y": 21, "w": 24, "h": 6 },
       "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 } } },
       "targets": [
         { "expr": "crypto_winning_trades", "legendFormat": "Winning Trades",
@@ -127,6 +129,177 @@
         { "expr": "crypto_losing_trades", "legendFormat": "Losing Trades",
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
       ]
+    },
+
+    { "type": "row", "id": 200, "title": "Strategy Breakdown — Bot Performance", "gridPos": { "x": 0, "y": 27, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 201, "type": "stat", "title": "Momentum Bot — Daily P&L",
+      "gridPos": { "x": 0, "y": 28, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
+      "targets": [{ "expr": "freqtrade_daily_profit_usd{bot=\"momentum\"}",
+        "legendFormat": "Momentum Daily P&L",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 202, "type": "stat", "title": "Scalp Bot — Daily P&L",
+      "gridPos": { "x": 6, "y": 28, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
+      "targets": [{ "expr": "freqtrade_daily_profit_usd{bot=\"scalp\"}",
+        "legendFormat": "Scalp Daily P&L",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 203, "type": "gauge", "title": "Momentum Bot — Win Rate",
+      "gridPos": { "x": 12, "y": 28, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": 0 },
+          { "color": "yellow", "value": 0.4 },
+          { "color": "green", "value": 0.6 }
+        ] } } },
+      "targets": [{ "expr": "freqtrade_win_rate{bot=\"momentum\"}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 204, "type": "gauge", "title": "Scalp Bot — Win Rate",
+      "gridPos": { "x": 18, "y": 28, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": 0 },
+          { "color": "yellow", "value": 0.4 },
+          { "color": "green", "value": 0.6 }
+        ] } } },
+      "targets": [{ "expr": "freqtrade_win_rate{bot=\"scalp\"}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 205, "type": "stat", "title": "Momentum Bot — Balance",
+      "gridPos": { "x": 0, "y": 32, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "targets": [{ "expr": "freqtrade_balance_usd{bot=\"momentum\"}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 206, "type": "stat", "title": "Scalp Bot — Balance",
+      "gridPos": { "x": 6, "y": 32, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "fixed", "fixedColor": "purple" } } },
+      "targets": [{ "expr": "freqtrade_balance_usd{bot=\"scalp\"}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 207, "type": "stat", "title": "Momentum — Open Trades",
+      "gridPos": { "x": 12, "y": 32, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "targets": [{ "expr": "count(freqtrade_open_trades{bot=\"momentum\"} == 1) or vector(0)",
+        "legendFormat": "Open Trades",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 208, "type": "stat", "title": "Scalp — Open Trades",
+      "gridPos": { "x": 18, "y": 32, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" } } },
+      "targets": [{ "expr": "count(freqtrade_open_trades{bot=\"scalp\"} == 1) or vector(0)",
+        "legendFormat": "Open Trades",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 209, "type": "timeseries", "title": "Per-Bot Daily Profit Over Time",
+      "gridPos": { "x": 0, "y": 36, "w": 24, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [
+        { "expr": "freqtrade_daily_profit_usd{bot=\"momentum\"}", "legendFormat": "Momentum Bot",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
+        { "expr": "freqtrade_daily_profit_usd{bot=\"scalp\"}", "legendFormat": "Scalp Bot",
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+      ]
+    },
+    {
+      "id": 210, "type": "bargauge", "title": "Open Trade Profit % by Pair — Momentum Bot",
+      "gridPos": { "x": 0, "y": 44, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": -0.05 },
+          { "color": "yellow", "value": 0 },
+          { "color": "green", "value": 0.02 }
+        ] } } },
+      "targets": [{ "expr": "freqtrade_trade_profit_pct{bot=\"momentum\"}",
+        "legendFormat": "{{pair}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal", "displayMode": "gradient" }
+    },
+    {
+      "id": 211, "type": "bargauge", "title": "Open Trade Profit % by Pair — Scalp Bot",
+      "gridPos": { "x": 12, "y": 44, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": -0.05 },
+          { "color": "yellow", "value": 0 },
+          { "color": "green", "value": 0.02 }
+        ] } } },
+      "targets": [{ "expr": "freqtrade_trade_profit_pct{bot=\"scalp\"}",
+        "legendFormat": "{{pair}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal", "displayMode": "gradient" }
+    },
+
+    { "type": "row", "id": 300, "title": "Signal Quality — Claude Analyst", "gridPos": { "x": 0, "y": 52, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 301, "type": "timeseries", "title": "Claude Prediction Accuracy by Symbol",
+      "gridPos": { "x": 0, "y": 53, "w": 16, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
+        "color": { "mode": "palette-classic" },
+        "custom": { "lineWidth": 2, "fillOpacity": 10 },
+        "thresholds": { "steps": [{ "color": "green", "value": 0.5 }] } } },
+      "targets": [{ "expr": "claude_prediction_accuracy",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }]
+    },
+    {
+      "id": 302, "type": "stat", "title": "Average Claude Accuracy",
+      "gridPos": { "x": 16, "y": 53, "w": 8, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": 0 },
+          { "color": "yellow", "value": 0.5 },
+          { "color": "green", "value": 0.65 }
+        ] } } },
+      "targets": [{ "expr": "avg(claude_prediction_accuracy)",
+        "legendFormat": "Avg Accuracy",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 303, "type": "stat", "title": "Circuit Breaker — Triggered",
+      "gridPos": { "x": 16, "y": 57, "w": 8, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "red", "value": 1 }] } } },
+      "targets": [{ "expr": "circuit_breaker_triggered_total",
+        "legendFormat": "Triggers",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     }
   ],
   "templating": {

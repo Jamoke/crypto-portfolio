@@ -1,5 +1,5 @@
 {
-    "max_open_trades": 8,
+    "max_open_trades": 6,
     "stake_currency": "USDC",
     "stake_amount": "unlimited",
     "tradable_balance_ratio": 0.99,
@@ -8,7 +8,6 @@
     "dry_run_wallet": 1000,
 
     "cancel_open_orders_on_exit": false,
-
     "trading_mode": "spot",
 
     "entry_pricing": {
@@ -38,7 +37,6 @@
             "ETH/USDC",
             "BTC/USDC",
             "ARB/USDC",
-            "MATIC/USDC",
             "OP/USDC",
             "AAVE/USDC",
             "UNI/USDC"
@@ -66,23 +64,52 @@
     "api_server": {
         "enabled": true,
         "listen_ip_address": "0.0.0.0",
-        "listen_port": 8080,
+        "listen_port": 8082,
         "verbosity": "error",
         "enable_openapi": true,
-        "jwt_secret_key": "${FREQTRADE_JWT_SECRET}",
-        "ws_token": "${FREQTRADE_WS_TOKEN}",
-        "CORS_origins": ["http://localhost:3000", "http://${PI_LOCAL_IP}:3000", "http://${PI_LOCAL_IP}:8081", "http://localhost:8081"],
+        "jwt_secret_key": "${FREQTRADE_FREQAI_JWT_SECRET}",
+        "ws_token": "${FREQTRADE_FREQAI_WS_TOKEN}",
+        "CORS_origins": ["http://localhost:3000", "http://${PI_LOCAL_IP}:3000", "http://localhost:8080"],
         "username": "${FREQTRADE_USERNAME}",
         "password": "${FREQTRADE_PASSWORD}"
     },
 
-    "bot_name": "crypto-portfolio",
+    "freqai": {
+        "enabled": true,
+        "purge_old_models": true,
+        "train_period_days": 30,
+        "backtest_period_days": 7,
+        "live_retrain_hours": 24,
+        "identifier": "freqai-v1",
+        "feature_parameters": {
+            "include_timeframes": ["1h", "4h"],
+            "include_corr_pairlist": ["BTC/USDC", "ETH/USDC"],
+            "label_period_candles": 24,
+            "include_shifted_candles": 2,
+            "DI_threshold": 0.9,
+            "weight_factor": 0.9,
+            "principal_component_analysis": false,
+            "use_SVM_to_remove_outliers": true
+        },
+        "data_split_parameters": {
+            "test_size": 0.33,
+            "random_state": 42
+        },
+        "model_training_parameters": {
+            "n_estimators": 200,
+            "learning_rate": 0.05,
+            "num_leaves": 31
+        },
+        "rl_config": {}
+    },
+
+    "bot_name": "freqai-portfolio",
     "initial_state": "running",
     "force_entry_enable": false,
     "internals": {
         "process_throttle_secs": 5
     },
 
-    "strategy": "MomentumStrategy",
+    "strategy": "FreqAIStrategy",
     "strategy_path": "/freqtrade/user_data/strategies/"
 }

@@ -71,11 +71,11 @@
         "listen_port": 8081,
         "verbosity": "error",
         "enable_openapi": true,
-        "jwt_secret_key": "scalp_bot_change_this_to_a_long_secret",
-        "ws_token": "scalp_ws_token_change_this_to_random",
-        "CORS_origins": ["http://localhost:3000", "http://192.168.50.152:3000", "http://192.168.50.152:8080", "http://localhost:8080"],
-        "username": "admin",
-        "password": "changeme"
+        "jwt_secret_key": "${FREQTRADE_SCALP_JWT_SECRET}",
+        "ws_token": "${FREQTRADE_SCALP_WS_TOKEN}",
+        "CORS_origins": ["http://localhost:3000", "http://${PI_LOCAL_IP}:3000", "http://${PI_LOCAL_IP}:8080", "http://localhost:8080"],
+        "username": "${FREQTRADE_USERNAME}",
+        "password": "${FREQTRADE_PASSWORD}"
     },
 
     "bot_name": "scalp-portfolio",

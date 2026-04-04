@@ -24,8 +24,14 @@ services:
       --config /freqtrade/config.json
       --strategy MomentumStrategy
       --dry-run
+      --env-vars
     environment:
       - TZ=${TIMEZONE:-America/Los_Angeles}
+      - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}
+      - FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD}
+      - FREQTRADE_JWT_SECRET=${FREQTRADE_JWT_SECRET}
+      - FREQTRADE_WS_TOKEN=${FREQTRADE_WS_TOKEN}
+      - PI_LOCAL_IP=${PI_LOCAL_IP:-localhost}
     ports:
       - "8080:8080"
     depends_on:
@@ -51,8 +57,14 @@ services:
       --config /freqtrade/config.json
       --strategy ScalpStrategy
       --dry-run
+      --env-vars
     environment:
       - TZ=${TIMEZONE:-America/Los_Angeles}
+      - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}
+      - FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD}
+      - FREQTRADE_SCALP_JWT_SECRET=${FREQTRADE_SCALP_JWT_SECRET}
+      - FREQTRADE_SCALP_WS_TOKEN=${FREQTRADE_SCALP_WS_TOKEN}
+      - PI_LOCAL_IP=${PI_LOCAL_IP:-localhost}
     ports:
       - "8081:8081"
     depends_on:
@@ -90,6 +102,8 @@ services:
     volumes:
       - ./config:/app/config:ro
       - analyst_logs:/app/logs
+    ports:
+      - "9102:9102"   # Prometheus metrics (prediction accuracy)
     depends_on:
       - redis
     networks:
@@ -105,6 +119,10 @@ services:
     restart: unless-stopped
     environment:
       - REDIS_URL=redis://redis:6379
+      - FREQTRADE_URL=http://freqtrade:8080
+      - FREQTRADE_SCALP_URL=http://freqtrade_scalp:8081
+      - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}
+      - FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD}
     volumes:
       - ./config:/app/config:ro
     ports:
@@ -185,10 +203,136 @@ services:
       - DIGEST_RECIPIENT=${DIGEST_RECIPIENT}
       - DIGEST_HOUR=${DIGEST_HOUR:-8}    # Send at 8 AM local time
       - DIGEST_SECRET=${DIGEST_SECRET}   # Used to sign approval emails
+      - GRAFANA_URL=http://${PI_LOCAL_IP:-localhost}:3000
       - REDIS_URL=redis://redis:6379
       - TZ=${TIMEZONE:-America/Los_Angeles}
     volumes:
       - ./config:/app/config:ro
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Freqtrade Exporter — Prometheus exporter for Freqtrade bot metrics
+  # Polls both bots' REST APIs and exposes /metrics on port 9101
+  # ----------------------------------------------------------
+  freqtrade_exporter:
+    build: ./services/freqtrade_exporter
+    container_name: freqtrade_exporter
+    restart: unless-stopped
+    environment:
+      - FREQTRADE_URL=http://freqtrade:8080
+      - FREQTRADE_SCALP_URL=http://freqtrade_scalp:8081
+      - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}
+      - FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD}
+      - SCRAPE_INTERVAL=60
+    ports:
+      - "9101:9101"
+    depends_on:
+      - freqtrade
+      - freqtrade_scalp
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # DCA Executor — Scheduled dollar-cost averaging into BTC/ETH
+  # Runs weekly (Monday 09:00); accelerates buys on >8% dips
+  # ----------------------------------------------------------
+  dca_executor:
+    build: ./services/dca_executor
+    container_name: dca_executor
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SIMULATION_MODE=${SIMULATION_MODE:-true}
+      - COINGECKO_API_KEY=${COINGECKO_API_KEY:-}
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+    volumes:
+      - ./config:/app/config:ro
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Freqtrade FreqAI Bot — ML-enhanced strategy (Plan 5)
+  # Runs LightGBM classifier trained on RSI/EMA/volume features
+  # Deferred — deploy after MomentumStrategy baseline is validated
+  # ----------------------------------------------------------
+  freqtrade_freqai:
+    image: freqtradeorg/freqtrade:stable
+    container_name: freqtrade_freqai
+    restart: unless-stopped
+    profiles: ["freqai"]   # Only starts with: docker compose --profile freqai up
+    volumes:
+      - freqtrade_freqai_data:/freqtrade/user_data
+      - ./freqtrade/strategies:/freqtrade/user_data/strategies
+      - ./freqtrade/config_freqai.json:/freqtrade/config.json
+    command: >
+      trade
+      --config /freqtrade/config.json
+      --strategy FreqAIStrategy
+      --dry-run
+      --env-vars
+    environment:
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+      - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}
+      - FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD}
+      - FREQTRADE_FREQAI_JWT_SECRET=${FREQTRADE_FREQAI_JWT_SECRET}
+      - FREQTRADE_FREQAI_WS_TOKEN=${FREQTRADE_FREQAI_WS_TOKEN}
+      - PI_LOCAL_IP=${PI_LOCAL_IP:-localhost}
+    ports:
+      - "8082:8082"
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Polymarket — Prediction market trading via Claude (Plan 4.5)
+  # Currently DISABLED (enabled: false in strategy_config.yaml)
+  # Set prediction_markets.enabled: true in strategy_config.yaml to activate
+  # ----------------------------------------------------------
+  polymarket:
+    build: ./services/polymarket
+    container_name: polymarket
+    restart: unless-stopped
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - REDIS_URL=redis://redis:6379
+      - SIMULATION_MODE=${SIMULATION_MODE:-true}
+      - POLYMARKET_API_KEY=${POLYMARKET_API_KEY:-}
+      - POLYMARKET_PRIVATE_KEY=${POLYMARKET_PRIVATE_KEY:-}
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+    volumes:
+      - ./config:/app/config:ro
+      - polymarket_db:/app/data
+    ports:
+      - "9104:9104"   # Prometheus metrics
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
+  # Yield Router — DeFi yield optimization (Plan 4.3)
+  # Currently DISABLED (enabled: false in yield_config.yaml)
+  # Enable by setting yield_config.yaml enabled: true
+  # ----------------------------------------------------------
+  yield_router:
+    build: ./services/yield_router
+    container_name: yield_router
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SIMULATION_MODE=${SIMULATION_MODE:-true}
+      - POLYGON_RPC_URL=${POLYGON_RPC_URL:-}
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+    volumes:
+      - ./config:/app/config:ro
+    ports:
+      - "9103:9103"   # Prometheus metrics
     depends_on:
       - redis
     networks:
@@ -202,7 +346,7 @@ services:
     container_name: grafana
     restart: unless-stopped
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-changeme}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - GF_SERVER_ROOT_URL=http://localhost:3000
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
@@ -237,6 +381,8 @@ volumes:
   executor_logs:
   freqtrade_scalp_data:
   trade_db:
+  polymarket_db:
+  freqtrade_freqai_data:
 
 networks:
   portfolio_net:

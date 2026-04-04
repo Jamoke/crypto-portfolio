@@ -133,6 +133,20 @@ def init_db():
             last_updated        TEXT    NOT NULL
         )
     """)
+    # Tax lot table — tracks individual purchase lots for FIFO cost basis and tax reporting
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS tax_lots (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol              TEXT    NOT NULL,
+            quantity            REAL    NOT NULL,
+            cost_basis_usd      REAL    NOT NULL,
+            purchase_date       TEXT    NOT NULL,
+            source              TEXT    DEFAULT 'executor',
+            closed_at           TEXT,
+            sale_price_usd      REAL,
+            realized_gain_usd   REAL
+        )
+    """)
     conn.commit()
     conn.close()
     logger.info(f"Trade database initialised at {DB_PATH}")
@@ -225,6 +239,96 @@ def get_trade_stats() -> dict:
     conn.close()
     return {"total_trades": total, "wins": wins, "losses": losses,
             "total_pnl_usd": total_pnl, "gas_spent_usd": gas_total}
+
+
+def record_tax_lot_buy(symbol: str, quantity: float, cost_basis_usd: float,
+                       purchase_date: str, source: str = "executor"):
+    """Record a new tax lot when a buy trade executes."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        INSERT INTO tax_lots (symbol, quantity, cost_basis_usd, purchase_date, source)
+        VALUES (?, ?, ?, ?, ?)
+    """, (symbol, quantity, cost_basis_usd, purchase_date, source))
+    conn.commit()
+    conn.close()
+
+
+def close_tax_lot_fifo(symbol: str, quantity_sold: float, sale_price_usd: float,
+                       sale_date: str) -> float:
+    """
+    Close tax lots FIFO when a sell occurs. Returns total realized gain/loss.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    open_lots = conn.execute("""
+        SELECT id, quantity, cost_basis_usd FROM tax_lots
+        WHERE symbol = ? AND closed_at IS NULL
+        ORDER BY purchase_date ASC
+    """, (symbol,)).fetchall()
+
+    remaining = quantity_sold
+    total_gain = 0.0
+
+    for lot_id, lot_qty, lot_cost in open_lots:
+        if remaining <= 0:
+            break
+        used = min(remaining, lot_qty)
+        gain = (sale_price_usd - lot_cost) * used
+        total_gain += gain
+        remaining -= used
+
+        if used >= lot_qty:
+            conn.execute("""
+                UPDATE tax_lots SET closed_at=?, sale_price_usd=?, realized_gain_usd=?
+                WHERE id=?
+            """, (sale_date, sale_price_usd, gain, lot_id))
+        else:
+            # Partial close: split the lot
+            conn.execute("UPDATE tax_lots SET quantity=? WHERE id=?",
+                         (lot_qty - used, lot_id))
+            conn.execute("""
+                INSERT INTO tax_lots (symbol, quantity, cost_basis_usd, purchase_date,
+                source, closed_at, sale_price_usd, realized_gain_usd)
+                VALUES (?, ?, ?, (SELECT purchase_date FROM tax_lots WHERE id=?),
+                (SELECT source FROM tax_lots WHERE id=?), ?, ?, ?)
+            """, (symbol, used, lot_cost, lot_id, lot_id, sale_date, sale_price_usd, gain))
+
+    conn.commit()
+    conn.close()
+    return total_gain
+
+
+def get_open_tax_lots() -> list[dict]:
+    """Return all open tax lots with holding period info for Grafana."""
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("""
+        SELECT id, symbol, quantity, cost_basis_usd, purchase_date, source
+        FROM tax_lots WHERE closed_at IS NULL ORDER BY symbol, purchase_date
+    """).fetchall()
+    conn.close()
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    lots = []
+    for row in rows:
+        lot_id, symbol, qty, cost, purchase_date, source = row
+        try:
+            pd = datetime.fromisoformat(purchase_date.replace("Z", "+00:00"))
+            if pd.tzinfo is None:
+                pd = pd.replace(tzinfo=timezone.utc)
+            holding_days = (now - pd).days
+        except Exception:
+            holding_days = 0
+        lots.append({
+            "id": lot_id,
+            "symbol": symbol,
+            "quantity": qty,
+            "cost_basis_usd": cost,
+            "purchase_date": purchase_date,
+            "source": source,
+            "holding_days": holding_days,
+            "long_term": holding_days >= 365,
+        })
+    return lots
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -723,6 +827,42 @@ def render_prometheus_metrics() -> str:
         lines.append(f'crypto_position_token_amount{{symbol="{sym}"}} {pos["token_amount"]}')
         lines.append(f'crypto_position_avg_cost_usd{{symbol="{sym}"}} {pos["avg_cost_usd"]}')
         lines.append(f'crypto_position_invested_usd{{symbol="{sym}"}} {pos["total_invested_usd"]}')
+
+    # ── Tax lot metrics ───────────────────────────────────────────────────────
+    try:
+        tax_lots = get_open_tax_lots()
+        if tax_lots:
+            # Current prices from Redis for unrealized gain calculation
+            current_prices: dict[str, float] = {}
+            for lot in tax_lots:
+                sym = lot["symbol"]
+                if sym not in current_prices:
+                    raw = r.get(f"claude:signals:{sym}")
+                    if raw:
+                        current_prices[sym] = json.loads(raw).get("price_usd", 0) or 0
+
+            lines.append("# HELP tax_cost_basis_usd Average cost basis per open lot in USD")
+            lines.append("# TYPE tax_cost_basis_usd gauge")
+            lines.append("# HELP tax_unrealized_gain_usd Unrealized gain/loss per open lot in USD")
+            lines.append("# TYPE tax_unrealized_gain_usd gauge")
+            lines.append("# HELP tax_holding_days Days held per open tax lot")
+            lines.append("# TYPE tax_holding_days gauge")
+
+            for lot in tax_lots:
+                sym = lot["symbol"].replace("/", "_")
+                lot_id = lot["id"]
+                cost = lot["cost_basis_usd"]
+                qty = lot["quantity"]
+                holding = lot["holding_days"]
+                current_price = current_prices.get(lot["symbol"], 0)
+                unrealized = (current_price - cost) * qty if current_price else 0
+
+                labels = f'symbol="{sym}",lot_id="{lot_id}"'
+                lines.append(f'tax_cost_basis_usd{{{labels}}} {cost}')
+                lines.append(f'tax_unrealized_gain_usd{{{labels}}} {round(unrealized, 4)}')
+                lines.append(f'tax_holding_days{{{labels}}} {holding}')
+    except Exception as e:
+        logger.warning(f"Tax metrics error: {e}")
 
     lines.append(f"crypto_last_metrics_update {_metrics.get('updated', 0)}")
     return "\n".join(lines) + "\n"

@@ -1,0 +1,135 @@
+{
+  "title": "Tax & Financial Analysis",
+  "uid": "crypto-tax-analysis",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-90d", "to": "now" },
+  "description": "Cost basis tracking, unrealized gain/loss, and tax loss harvesting opportunities",
+  "panels": [
+
+    { "type": "row", "id": 100, "title": "Portfolio Financial Summary", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 101, "type": "stat", "title": "Total Unrealized Gain/Loss (USD)",
+      "gridPos": { "x": 0, "y": 1, "w": 8, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": null },
+          { "color": "yellow", "value": -100 },
+          { "color": "green", "value": 0 }
+        ] } } },
+      "targets": [{ "expr": "sum(tax_unrealized_gain_usd)",
+        "legendFormat": "Total Unrealized",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 102, "type": "stat", "title": "Open Tax Lots",
+      "gridPos": { "x": 8, "y": 1, "w": 8, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "targets": [{ "expr": "count(tax_cost_basis_usd)",
+        "legendFormat": "Open Lots",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 103, "type": "stat", "title": "Realized P&L (All Time)",
+      "gridPos": { "x": 16, "y": 1, "w": 8, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
+      "targets": [{ "expr": "crypto_realized_pnl_usd_total",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    { "type": "row", "id": 200, "title": "Unrealized Gain / Loss by Asset", "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 201, "type": "bargauge", "title": "Unrealized Gain/Loss per Asset (USD)",
+      "description": "Positive = unrealized gain, Negative = unrealized loss (loss harvesting opportunity)",
+      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 10 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "dark-red", "value": null },
+          { "color": "red", "value": -500 },
+          { "color": "yellow", "value": -100 },
+          { "color": "green", "value": 0 },
+          { "color": "dark-green", "value": 500 }
+        ] } } },
+      "targets": [{ "expr": "sum by (symbol) (tax_unrealized_gain_usd)",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color"
+      }
+    },
+
+    { "type": "row", "id": 300, "title": "Cost Basis vs. Current Price", "gridPos": { "x": 0, "y": 16, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 301, "type": "bargauge", "title": "Average Cost Basis per Asset (USD per token)",
+      "gridPos": { "x": 0, "y": 17, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "palette-classic" } } },
+      "targets": [{ "expr": "avg by (symbol) (tax_cost_basis_usd)",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal", "displayMode": "gradient" }
+    },
+    {
+      "id": 302, "type": "bargauge", "title": "Holding Period by Lot (Days)",
+      "description": "Lots held ≥365 days qualify for long-term capital gains rates",
+      "gridPos": { "x": 12, "y": 17, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "d",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "blue", "value": 0 },
+          { "color": "green", "value": 365 }
+        ] } } },
+      "targets": [{ "expr": "tax_holding_days",
+        "legendFormat": "{{symbol}} lot #{{lot_id}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal", "displayMode": "gradient" }
+    },
+
+    { "type": "row", "id": 400, "title": "Tax Loss Harvesting Opportunities", "gridPos": { "x": 0, "y": 25, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 401, "type": "bargauge", "title": "Assets with Unrealized Losses > $50 (Harvesting Candidates)",
+      "description": "These positions can be sold to realize losses that offset capital gains. After 30+ days, repurchase to maintain exposure (wash-sale rule applies in some jurisdictions).",
+      "gridPos": { "x": 0, "y": 26, "w": 24, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "fixed", "fixedColor": "red" },
+        "thresholds": { "steps": [{ "color": "red", "value": null }] } } },
+      "targets": [{ "expr": "sum by (symbol) (tax_unrealized_gain_usd) < -50",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal", "displayMode": "gradient" }
+    },
+    {
+      "id": 402, "type": "timeseries", "title": "Unrealized Gain/Loss History",
+      "gridPos": { "x": 0, "y": 34, "w": 24, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [{ "expr": "sum by (symbol) (tax_unrealized_gain_usd)",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }]
+    }
+  ],
+  "templating": {
+    "list": [{
+      "name": "DS_PROMETHEUS", "type": "datasource", "pluginId": "prometheus",
+      "hide": 2, "current": { "text": "Prometheus", "value": "Prometheus" }
+    }]
+  }
+}

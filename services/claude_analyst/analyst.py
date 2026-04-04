@@ -11,6 +11,7 @@ import os
 import json
 import time
 import logging
+import threading
 import requests
 import redis
 import anthropic
@@ -18,6 +19,8 @@ import yaml
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
+from flask import Flask, Response
+from prometheus_client import Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -30,6 +33,13 @@ STRATEGY_CONFIG = Path("/app/config/strategy_config.yaml")
 
 r = redis.from_url(REDIS_URL, decode_responses=True)
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+# ── Prometheus metrics ────────────────────────────────────────────────────────
+prediction_accuracy = Gauge(
+    "claude_prediction_accuracy",
+    "Ratio of Claude directional predictions that were correct",
+    ["symbol"],
+)
 
 # CoinGecko symbol → ID mapping for common assets
 COINGECKO_IDS = {
@@ -203,6 +213,93 @@ def publish_signals(analysis: dict):
     logger.info(f"Published Claude analysis for {len(analysis.get('signals', {}))} symbols")
 
 
+def record_predictions_for_feedback(analysis: dict, market_data: dict):
+    """
+    After each analysis, store predicted direction + current price in Redis
+    so the next cycle can check accuracy.
+    Key: claude:prediction:{symbol}:{timestamp_bucket}
+    TTL: 48h (long enough to compare at next 6h cycle)
+    """
+    if "error" in analysis or not market_data:
+        return
+
+    bucket = datetime.now(timezone.utc).strftime("%Y%m%d%H")
+    for symbol, signal in analysis.get("signals", {}).items():
+        price = market_data.get(symbol, {}).get("price_usd")
+        if not price:
+            continue
+        record = {
+            "symbol": symbol,
+            "direction": signal.get("direction", "neutral"),
+            "confidence": signal.get("confidence", 0),
+            "price_at_prediction": price,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        key = f"claude:prediction:{symbol}:{bucket}"
+        r.setex(key, 86400 * 2, json.dumps(record))
+
+
+def evaluate_prediction_accuracy(market_data: dict):
+    """
+    For each symbol with a stored prediction from the previous cycle,
+    compare the predicted direction against the actual price movement.
+    Update the claude_prediction_accuracy Prometheus metric.
+    """
+    if not market_data:
+        return
+
+    for symbol in market_data:
+        correct = 0
+        total = 0
+        # Look at all stored predictions for this symbol
+        for key in r.scan_iter(f"claude:prediction:{symbol}:*"):
+            try:
+                record = json.loads(r.get(key) or "{}")
+                direction = record.get("direction")
+                pred_price = float(record.get("price_at_prediction", 0))
+                current_price = float(market_data[symbol].get("price_usd", 0))
+                if not pred_price or not current_price:
+                    continue
+
+                price_change = (current_price - pred_price) / pred_price
+                # Bullish prediction is correct if price rose >0.5%
+                # Bearish prediction is correct if price fell >0.5%
+                # Neutral: correct if abs(change) < 1%
+                if direction == "bullish" and price_change > 0.005:
+                    correct += 1
+                elif direction == "bearish" and price_change < -0.005:
+                    correct += 1
+                elif direction == "neutral" and abs(price_change) < 0.01:
+                    correct += 1
+                total += 1
+            except Exception:
+                continue
+
+        if total > 0:
+            accuracy = correct / total
+            prediction_accuracy.labels(symbol=symbol).set(accuracy)
+            logger.debug(f"Prediction accuracy for {symbol}: {accuracy:.1%} ({correct}/{total})")
+
+
+# ── Metrics server ────────────────────────────────────────────────────────────
+
+metrics_app = Flask("analyst_metrics")
+
+@metrics_app.route("/metrics")
+def metrics_endpoint():
+    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
+
+@metrics_app.route("/health")
+def health():
+    return {"status": "ok", "service": "claude_analyst"}, 200
+
+
+def start_metrics_server():
+    import logging as _log
+    _log.getLogger("werkzeug").setLevel(_log.ERROR)
+    metrics_app.run(host="0.0.0.0", port=9102, debug=False)
+
+
 def run_analysis_cycle():
     """One full analysis cycle."""
     logger.info("Starting analysis cycle...")
@@ -229,14 +326,24 @@ def run_analysis_cycle():
         )
         return
 
+    # Evaluate accuracy of previous predictions before running new analysis
+    evaluate_prediction_accuracy(market_data)
+
     analysis = run_claude_analysis(market_data, tv_signals, ft_signals)
     publish_signals(analysis)
+
+    # Record predictions for next cycle's accuracy check
+    record_predictions_for_feedback(analysis, market_data)
 
     logger.info(f"Analysis cycle complete. Market summary: {analysis.get('market_summary', 'N/A')}")
 
 
 if __name__ == "__main__":
     logger.info("Claude Analyst Service started")
+
+    # Start Prometheus metrics server in background
+    threading.Thread(target=start_metrics_server, daemon=True).start()
+    logger.info("Metrics server started on port 9102 (/metrics)")
 
     # Wait for other services
     time.sleep(15)
