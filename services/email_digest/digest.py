@@ -348,6 +348,33 @@ def render_digest_html(content: dict, pending_actions: list, date_str: str) -> s
 
     grafana_url = os.environ.get("GRAFANA_URL", "http://localhost:3000")
 
+    # Pre-compute conditional blocks to avoid nested f-strings (Python <3.12 limitation)
+    if not signal_rows:
+        signal_table_html = "<p style='color:#888;font-style:italic'>No signals available.</p>"
+    else:
+        signal_table_html = (
+            "<table style='width:100%;border-collapse:collapse;font-size:13px'>"
+            "<thead><tr style='background:#f4f4f4'>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Symbol</th>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Direction</th>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Confidence</th>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Action</th>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Reasoning</th>"
+            f"</tr></thead><tbody>{signal_rows}</tbody></table>"
+        )
+
+    if not tax_items:
+        tax_section_html = ""
+    else:
+        tax_section_html = (
+            "<div style='padding:0 16px 16px;background:#fff9f0;border-left:4px solid #f39c12;margin:0 16px 16px'>"
+            "<h2 style='font-size:16px;margin-top:0'>Tax Insights &amp; Harvesting Opportunities</h2>"
+            f"<ul style='margin:0;padding-left:20px'>{tax_items}</ul>"
+            "<p style='font-size:11px;color:#888;margin-top:8px'>"
+            "&#9888;&#65039; This is not tax advice. Consult a tax professional before acting on these insights."
+            "</p></div>"
+        )
+
     return f"""
 <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#333">
 
@@ -379,19 +406,7 @@ def render_digest_html(content: dict, pending_actions: list, date_str: str) -> s
 
   <div style="padding:0 16px 16px">
     <h2 style="font-size:16px;border-bottom:2px solid #eee;padding-bottom:8px">Market Signals</h2>
-    {"<p style='color:#888;font-style:italic'>No signals available.</p>" if not signal_rows else f"""
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead>
-        <tr style="background:#f4f4f4">
-          <th style="padding:8px;border:1px solid #ddd;text-align:left">Symbol</th>
-          <th style="padding:8px;border:1px solid #ddd;text-align:left">Direction</th>
-          <th style="padding:8px;border:1px solid #ddd;text-align:left">Confidence</th>
-          <th style="padding:8px;border:1px solid #ddd;text-align:left">Action</th>
-          <th style="padding:8px;border:1px solid #ddd;text-align:left">Reasoning</th>
-        </tr>
-      </thead>
-      <tbody>{signal_rows}</tbody>
-    </table>"""}
+    {signal_table_html}
   </div>
 
   <div style="padding:0 16px 16px">
@@ -399,14 +414,7 @@ def render_digest_html(content: dict, pending_actions: list, date_str: str) -> s
     <p style="margin:0">{content.get("dca_activity","N/A")}</p>
   </div>
 
-  {"" if not tax_items else f"""
-  <div style="padding:0 16px 16px;background:#fff9f0;border-left:4px solid #f39c12;margin:0 16px 16px">
-    <h2 style="font-size:16px;margin-top:0">Tax Insights &amp; Harvesting Opportunities</h2>
-    <ul style="margin:0;padding-left:20px">{tax_items}</ul>
-    <p style="font-size:11px;color:#888;margin-top:8px">
-      ⚠️ This is not tax advice. Consult a tax professional before acting on these insights.
-    </p>
-  </div>"""}
+  {tax_section_html}
 
   <div style="padding:0 16px 16px">
     <h2 style="font-size:16px;border-bottom:2px solid #eee;padding-bottom:8px">System Health</h2>
