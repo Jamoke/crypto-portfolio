@@ -96,6 +96,13 @@ r = redis.from_url(REDIS_URL, decode_responses=True)
 _metrics: dict = {}
 _metrics_lock = threading.Lock()
 
+# ── Simulation metrics — in-memory counters, reset on restart ────────────────
+# Keyed as (symbol, action) → count / latest_value
+_sim_decisions: dict = {}          # {(symbol, action): count}
+_sim_signal_strength: dict = {}    # {symbol: latest float}
+_sim_confidence: dict = {}         # {symbol: latest float}
+_sim_lock = threading.Lock()
+
 
 # ════════════════════════════════════════════════════════════════════════════
 #  DATABASE
@@ -735,10 +742,19 @@ def simulate_execution(decision: dict):
         "decision":  decision,
         "note":      "Set SIMULATION_MODE=false to execute on-chain.",
     }
-    logger.info(f"[SIM] {decision['symbol']} {decision['side'].upper()} "
+    sym    = decision["symbol"]
+    action = decision.get("suggested_action") or decision.get("side", "unknown")
+    logger.info(f"[SIM] {sym} {action.upper()} "
                 f"(conf={decision['confidence']:.0%} str={decision['signal_strength']:+.2f})")
     r.lpush("executor:simulated_trades", json.dumps(log_entry))
     r.ltrim("executor:simulated_trades", 0, 499)
+
+    # Update in-memory sim metrics for Prometheus
+    with _sim_lock:
+        key = (sym, action)
+        _sim_decisions[key] = _sim_decisions.get(key, 0) + 1
+        _sim_signal_strength[sym] = decision.get("signal_strength", 0)
+        _sim_confidence[sym]      = decision.get("confidence", 0)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -865,6 +881,31 @@ def render_prometheus_metrics() -> str:
         logger.warning(f"Tax metrics error: {e}")
 
     lines.append(f"crypto_last_metrics_update {_metrics.get('updated', 0)}")
+
+    # ── Simulation metrics ────────────────────────────────────────────────────
+    with _sim_lock:
+        sim_decisions   = dict(_sim_decisions)
+        sim_strengths   = dict(_sim_signal_strength)
+        sim_confidences = dict(_sim_confidence)
+
+    if sim_decisions:
+        lines.append("# HELP crypto_sim_decisions_total Simulated trade decisions counted since last restart")
+        lines.append("# TYPE crypto_sim_decisions_total counter")
+        for (sym, action), count in sorted(sim_decisions.items()):
+            lines.append(f'crypto_sim_decisions_total{{symbol="{sym}",action="{action}"}} {count}')
+
+    if sim_strengths:
+        lines.append("# HELP crypto_sim_signal_strength Latest signal strength seen for each symbol in simulation")
+        lines.append("# TYPE crypto_sim_signal_strength gauge")
+        for sym, val in sorted(sim_strengths.items()):
+            lines.append(f'crypto_sim_signal_strength{{symbol="{sym}"}} {round(val, 4)}')
+
+    if sim_confidences:
+        lines.append("# HELP crypto_sim_confidence Latest confidence score seen for each symbol in simulation")
+        lines.append("# TYPE crypto_sim_confidence gauge")
+        for sym, val in sorted(sim_confidences.items()):
+            lines.append(f'crypto_sim_confidence{{symbol="{sym}"}} {round(val, 4)}')
+
     return "\n".join(lines) + "\n"
 
 

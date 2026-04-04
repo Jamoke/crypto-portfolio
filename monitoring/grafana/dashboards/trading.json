@@ -300,6 +300,110 @@
         "legendFormat": "Triggers",
         "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    { "id": 400, "type": "text", "title": "",
+      "gridPos": { "x": 0, "y": 63, "w": 24, "h": 1 },
+      "options": { "content": "## 🧪 Simulated Trading Activity (DeFi Executor — SIMULATION_MODE=true)", "mode": "markdown" }
+    },
+
+    {
+      "id": 401, "type": "stat", "title": "Total Simulated Decisions",
+      "gridPos": { "x": 0, "y": 64, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": 0 }] },
+        "unit": "short" } },
+      "targets": [{ "expr": "sum(crypto_sim_decisions_total) or vector(0)",
+        "legendFormat": "Decisions",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 402, "type": "stat", "title": "Avg Signal Confidence",
+      "gridPos": { "x": 6, "y": 64, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": 0 },
+          { "color": "yellow", "value": 0.5 },
+          { "color": "green", "value": 0.7 }
+        ] },
+        "unit": "percentunit", "min": 0, "max": 1 } },
+      "targets": [{ "expr": "avg(crypto_sim_confidence) or vector(0)",
+        "legendFormat": "Avg Confidence",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 403, "type": "stat", "title": "Avg Signal Strength",
+      "gridPos": { "x": 12, "y": 64, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": -1 },
+          { "color": "yellow", "value": -0.2 },
+          { "color": "green", "value": 0.3 }
+        ] },
+        "unit": "short", "min": -1, "max": 1 } },
+      "targets": [{ "expr": "avg(crypto_sim_signal_strength) or vector(0)",
+        "legendFormat": "Avg Strength",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 404, "type": "stat", "title": "Symbols Signaled",
+      "gridPos": { "x": 18, "y": 64, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": 0 }] },
+        "unit": "short" } },
+      "targets": [{ "expr": "count(crypto_sim_confidence) or vector(0)",
+        "legendFormat": "Symbols",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    {
+      "id": 405, "type": "bargauge", "title": "Simulated Decisions by Symbol & Action",
+      "gridPos": { "x": 0, "y": 68, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
+      "targets": [{ "expr": "crypto_sim_decisions_total",
+        "legendFormat": "{{symbol}} / {{action}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] },
+        "displayMode": "gradient", "valueMode": "color" }
+    },
+    {
+      "id": 406, "type": "timeseries", "title": "Simulated Decision Rate (per symbol)",
+      "gridPos": { "x": 12, "y": 68, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [{ "expr": "increase(crypto_sim_decisions_total[1h])",
+        "legendFormat": "{{symbol}} {{action}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+
+    {
+      "id": 407, "type": "timeseries", "title": "Signal Strength by Symbol (Simulation)",
+      "gridPos": { "x": 0, "y": 76, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "short", "min": -1, "max": 1,
+        "custom": { "lineWidth": 2 },
+        "thresholds": { "steps": [
+          { "color": "red", "value": -1 },
+          { "color": "yellow", "value": -0.2 },
+          { "color": "green", "value": 0.3 }
+        ] } } },
+      "targets": [{ "expr": "crypto_sim_signal_strength",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 408, "type": "timeseries", "title": "Confidence by Symbol (Simulation)",
+      "gridPos": { "x": 12, "y": 76, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
+        "custom": { "lineWidth": 2 } } },
+      "targets": [{ "expr": "crypto_sim_confidence",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "options": { "tooltip": { "mode": "multi" } }
     }
   ],
   "templating": {
