@@ -22,7 +22,7 @@
         ] } } },
       "targets": [{ "expr": "sum(tax_unrealized_gain_usd)",
         "legendFormat": "Total Unrealized",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto" }
     },
     {
@@ -31,7 +31,7 @@
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
       "targets": [{ "expr": "count(tax_cost_basis_usd)",
         "legendFormat": "Open Lots",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -41,7 +41,7 @@
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
       "targets": [{ "expr": "crypto_realized_pnl_usd_total",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
 
@@ -62,7 +62,7 @@
         ] } } },
       "targets": [{ "expr": "sum by (symbol) (tax_unrealized_gain_usd)",
         "legendFormat": "{{symbol}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "horizontal",
@@ -80,7 +80,7 @@
         "color": { "mode": "palette-classic" } } },
       "targets": [{ "expr": "avg by (symbol) (tax_cost_basis_usd)",
         "legendFormat": "{{symbol}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "horizontal", "displayMode": "gradient" }
     },
@@ -96,7 +96,7 @@
         ] } } },
       "targets": [{ "expr": "tax_holding_days",
         "legendFormat": "{{symbol}} lot #{{lot_id}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "horizontal", "displayMode": "gradient" }
     },
@@ -112,7 +112,7 @@
         "thresholds": { "steps": [{ "color": "red", "value": null }] } } },
       "targets": [{ "expr": "sum by (symbol) (tax_unrealized_gain_usd) < -50",
         "legendFormat": "{{symbol}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "horizontal", "displayMode": "gradient" }
     },
@@ -123,7 +123,7 @@
         "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
       "targets": [{ "expr": "sum by (symbol) (tax_unrealized_gain_usd)",
         "legendFormat": "{{symbol}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }]
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     }
   ],
   "templating": {

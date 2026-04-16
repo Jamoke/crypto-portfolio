@@ -15,7 +15,7 @@
       "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
       "targets": [{ "expr": "crypto_trades_total", "legendFormat": "Trades",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto",
         "textMode": "auto", "colorMode": "background" }
     },
@@ -29,7 +29,7 @@
           { "color": "green", "value": 0 }
         ] } } },
       "targets": [{ "expr": "crypto_realized_pnl_usd_total",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background", "textMode": "auto" }
     },
@@ -44,7 +44,7 @@
           { "color": "green", "value": 0.6 }
         ] } } },
       "targets": [{ "expr": "crypto_winning_trades / (crypto_winning_trades + crypto_losing_trades)",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background", "textMode": "auto" }
     },
@@ -54,7 +54,7 @@
       "fieldConfig": { "defaults": { "unit": "currencyUSD",
         "color": { "mode": "fixed", "fixedColor": "orange" } } },
       "targets": [{ "expr": "crypto_gas_spent_usd_total",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background", "textMode": "auto" }
     },
@@ -63,7 +63,7 @@
       "gridPos": { "x": 16, "y": 1, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
       "targets": [{ "expr": "crypto_winning_trades",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background", "textMode": "auto" }
     },
@@ -72,7 +72,7 @@
       "gridPos": { "x": 20, "y": 1, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
       "targets": [{ "expr": "crypto_losing_trades",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background", "textMode": "auto" }
     },
@@ -84,7 +84,7 @@
         "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
       "targets": [{ "expr": "crypto_realized_pnl_usd_total",
         "legendFormat": "Realized P&L",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }]
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     },
     {
       "id": 8, "type": "timeseries", "title": "Gas Costs Over Time",
@@ -94,7 +94,7 @@
         "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
       "targets": [{ "expr": "crypto_gas_spent_usd_total",
         "legendFormat": "Gas Spent",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }]
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     },
     {
       "id": 9, "type": "bargauge", "title": "Current Positions — Invested USD",
@@ -104,7 +104,7 @@
         "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
       "targets": [{ "expr": "crypto_position_invested_usd",
         "legendFormat": "{{symbol}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "horizontal", "displayMode": "gradient", "valueMode": "color" }
     },
@@ -115,7 +115,7 @@
         "color": { "mode": "palette-classic" } } },
       "targets": [{ "expr": "crypto_position_avg_cost_usd",
         "legendFormat": "{{symbol}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "horizontal", "displayMode": "gradient" }
     },
@@ -125,9 +125,9 @@
       "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 } } },
       "targets": [
         { "expr": "crypto_winning_trades", "legendFormat": "Winning Trades",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
+          "datasource": { "type": "prometheus", "uid": "prometheus" } },
         { "expr": "crypto_losing_trades", "legendFormat": "Losing Trades",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+          "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ]
     },
 
@@ -141,7 +141,7 @@
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
       "targets": [{ "expr": "freqtrade_daily_profit_usd{bot=\"momentum\"}",
         "legendFormat": "Momentum Daily P&L",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -152,7 +152,7 @@
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
       "targets": [{ "expr": "freqtrade_daily_profit_usd{bot=\"scalp\"}",
         "legendFormat": "Scalp Daily P&L",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -166,7 +166,7 @@
           { "color": "green", "value": 0.6 }
         ] } } },
       "targets": [{ "expr": "freqtrade_win_rate{bot=\"momentum\"}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
     },
     {
@@ -180,7 +180,7 @@
           { "color": "green", "value": 0.6 }
         ] } } },
       "targets": [{ "expr": "freqtrade_win_rate{bot=\"scalp\"}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
     },
     {
@@ -189,7 +189,7 @@
       "fieldConfig": { "defaults": { "unit": "currencyUSD",
         "color": { "mode": "fixed", "fixedColor": "blue" } } },
       "targets": [{ "expr": "freqtrade_balance_usd{bot=\"momentum\"}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -198,7 +198,7 @@
       "fieldConfig": { "defaults": { "unit": "currencyUSD",
         "color": { "mode": "fixed", "fixedColor": "purple" } } },
       "targets": [{ "expr": "freqtrade_balance_usd{bot=\"scalp\"}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -207,7 +207,7 @@
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
       "targets": [{ "expr": "count(freqtrade_open_trades{bot=\"momentum\"} == 1) or vector(0)",
         "legendFormat": "Open Trades",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -216,7 +216,7 @@
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" } } },
       "targets": [{ "expr": "count(freqtrade_open_trades{bot=\"scalp\"} == 1) or vector(0)",
         "legendFormat": "Open Trades",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -225,9 +225,9 @@
       "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
       "targets": [
         { "expr": "freqtrade_daily_profit_usd{bot=\"momentum\"}", "legendFormat": "Momentum Bot",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
+          "datasource": { "type": "prometheus", "uid": "prometheus" } },
         { "expr": "freqtrade_daily_profit_usd{bot=\"scalp\"}", "legendFormat": "Scalp Bot",
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+          "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ]
     },
     {
@@ -242,7 +242,7 @@
         ] } } },
       "targets": [{ "expr": "freqtrade_trade_profit_pct{bot=\"momentum\"}",
         "legendFormat": "{{pair}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "horizontal", "displayMode": "gradient" }
     },
@@ -258,7 +258,7 @@
         ] } } },
       "targets": [{ "expr": "freqtrade_trade_profit_pct{bot=\"scalp\"}",
         "legendFormat": "{{pair}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
         "orientation": "horizontal", "displayMode": "gradient" }
     },
@@ -274,7 +274,7 @@
         "thresholds": { "steps": [{ "color": "green", "value": 0.5 }] } } },
       "targets": [{ "expr": "claude_prediction_accuracy",
         "legendFormat": "{{symbol}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }]
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     },
     {
       "id": 302, "type": "stat", "title": "Average Claude Accuracy",
@@ -288,7 +288,7 @@
         ] } } },
       "targets": [{ "expr": "avg(claude_prediction_accuracy)",
         "legendFormat": "Avg Accuracy",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -298,7 +298,7 @@
         "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "red", "value": 1 }] } } },
       "targets": [{ "expr": "circuit_breaker_triggered_total",
         "legendFormat": "Triggers",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
 
@@ -310,7 +310,7 @@
       "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
       "targets": [{ "expr": "freqtrade_open_trade_count{bot=\"momentum\"}",
-        "legendFormat": "Open", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "legendFormat": "Open", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -319,7 +319,7 @@
       "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
       "targets": [{ "expr": "freqtrade_open_trade_count{bot=\"scalp\"}",
-        "legendFormat": "Open", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "legendFormat": "Open", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -329,7 +329,7 @@
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
       "targets": [{ "expr": "freqtrade_avg_trade_profit_pct{bot=\"momentum\"}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -339,7 +339,7 @@
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
       "targets": [{ "expr": "freqtrade_avg_trade_profit_pct{bot=\"scalp\"}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -349,7 +349,7 @@
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.15 }] } } },
       "targets": [{ "expr": "freqtrade_max_drawdown_pct{bot=\"momentum\"}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -359,7 +359,7 @@
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.15 }] } } },
       "targets": [{ "expr": "freqtrade_max_drawdown_pct{bot=\"scalp\"}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -367,8 +367,8 @@
       "gridPos": { "x": 0, "y": 68, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "lineWidth": 2 } } },
       "targets": [
-        { "expr": "freqtrade_balance_usd{bot=\"momentum\"}", "legendFormat": "Momentum", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
-        { "expr": "freqtrade_balance_usd{bot=\"scalp\"}", "legendFormat": "Scalp / Breakout", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+        { "expr": "freqtrade_balance_usd{bot=\"momentum\"}", "legendFormat": "Momentum", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "freqtrade_balance_usd{bot=\"scalp\"}", "legendFormat": "Scalp / Breakout", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ],
       "options": { "tooltip": { "mode": "multi" } }
     },
@@ -378,8 +378,8 @@
       "fieldConfig": { "defaults": { "unit": "percent", "custom": { "lineWidth": 2 },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
       "targets": [
-        { "expr": "freqtrade_open_unrealized_pnl_pct{bot=\"momentum\"}", "legendFormat": "Momentum unrealized", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
-        { "expr": "freqtrade_open_unrealized_pnl_pct{bot=\"scalp\"}", "legendFormat": "Scalp unrealized", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+        { "expr": "freqtrade_open_unrealized_pnl_pct{bot=\"momentum\"}", "legendFormat": "Momentum unrealized", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "freqtrade_open_unrealized_pnl_pct{bot=\"scalp\"}", "legendFormat": "Scalp unrealized", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ],
       "options": { "tooltip": { "mode": "multi" } }
     },
@@ -391,7 +391,7 @@
       "gridPos": { "x": 0, "y": 78, "w": 6, "h": 4 },
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" } },
       "targets": [
-        { "expr": "backtest_total_trades", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+        { "expr": "backtest_total_trades", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "orientation": "vertical" }
     },
@@ -401,7 +401,7 @@
       "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 1,
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.45 }, { "color": "green", "value": 0.55 }] } } },
-      "targets": [{ "expr": "backtest_win_rate", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "targets": [{ "expr": "backtest_win_rate", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "orientation": "vertical" }
     },
     {
@@ -410,7 +410,7 @@
       "fieldConfig": { "defaults": { "unit": "short", "decimals": 2,
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 1.0 }, { "color": "green", "value": 1.5 }] } } },
-      "targets": [{ "expr": "backtest_profit_factor", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "targets": [{ "expr": "backtest_profit_factor", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "orientation": "vertical" }
     },
     {
@@ -419,7 +419,7 @@
       "fieldConfig": { "defaults": { "unit": "short", "decimals": 2,
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "green", "value": 1.0 }] } } },
-      "targets": [{ "expr": "backtest_sharpe", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "targets": [{ "expr": "backtest_sharpe", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "orientation": "vertical" }
     },
     {
@@ -427,8 +427,8 @@
       "gridPos": { "x": 0, "y": 82, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1 } },
       "targets": [
-        { "expr": "backtest_total_profit_pct", "legendFormat": "Total profit — {{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
-        { "expr": "-backtest_max_drawdown_pct * 100", "legendFormat": "Max drawdown — {{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+        { "expr": "backtest_total_profit_pct", "legendFormat": "Total profit — {{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "-backtest_max_drawdown_pct * 100", "legendFormat": "Max drawdown — {{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ],
       "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient" }
     },
@@ -437,9 +437,9 @@
       "gridPos": { "x": 12, "y": 82, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2 } },
       "targets": [
-        { "expr": "backtest_avg_profit_pct",   "legendFormat": "Avg trade — {{strategy}}",   "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
-        { "expr": "backtest_best_trade_pct",   "legendFormat": "Best trade — {{strategy}}",  "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
-        { "expr": "backtest_worst_trade_pct",  "legendFormat": "Worst trade — {{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+        { "expr": "backtest_avg_profit_pct",   "legendFormat": "Avg trade — {{strategy}}",   "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "backtest_best_trade_pct",   "legendFormat": "Best trade — {{strategy}}",  "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "backtest_worst_trade_pct",  "legendFormat": "Worst trade — {{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ],
       "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient" }
     },
@@ -449,9 +449,9 @@
       "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1,
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
       "targets": [
-        { "expr": "backtest_trade_profit_pct{strategy=\"MomentumStrategy\"}", "legendFormat": "Momentum {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
-        { "expr": "backtest_trade_profit_pct{strategy=\"ScalpStrategy\"}", "legendFormat": "Breakout {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
-        { "expr": "backtest_trade_profit_pct{strategy=\"RecoveryMomentumStrategy\"}", "legendFormat": "Recovery {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+        { "expr": "backtest_trade_profit_pct{strategy=\"MomentumStrategy\"}", "legendFormat": "Momentum {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "backtest_trade_profit_pct{strategy=\"ScalpStrategy\"}", "legendFormat": "Breakout {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "backtest_trade_profit_pct{strategy=\"RecoveryMomentumStrategy\"}", "legendFormat": "Recovery {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ],
       "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient" }
     },
@@ -460,21 +460,21 @@
       "gridPos": { "x": 0, "y": 98, "w": 8, "h": 4 },
       "fieldConfig": { "defaults": { "unit": "h", "decimals": 1,
         "color": { "mode": "palette-classic" } } },
-      "targets": [{ "expr": "backtest_avg_duration_hours", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "targets": [{ "expr": "backtest_avg_duration_hours", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "orientation": "vertical" }
     },
     {
       "id": 609, "type": "stat", "title": "Backtest — Days of History",
       "gridPos": { "x": 8, "y": 98, "w": 8, "h": 4 },
       "fieldConfig": { "defaults": { "unit": "d", "color": { "mode": "palette-classic" } } },
-      "targets": [{ "expr": "backtest_days_covered", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "targets": [{ "expr": "backtest_days_covered", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "orientation": "vertical" }
     },
     {
       "id": 610, "type": "stat", "title": "Backtest — Last Updated",
       "gridPos": { "x": 16, "y": 98, "w": 8, "h": 4 },
       "fieldConfig": { "defaults": { "unit": "dateTimeAsLocal", "color": { "mode": "palette-classic" } } },
-      "targets": [{ "expr": "backtest_last_updated * 1000", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+      "targets": [{ "expr": "backtest_last_updated * 1000", "legendFormat": "{{strategy}}", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "orientation": "vertical" }
     },
 
@@ -491,7 +491,7 @@
         "unit": "short" } },
       "targets": [{ "expr": "sum(crypto_sim_decisions_total) or vector(0)",
         "legendFormat": "Decisions",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -506,7 +506,7 @@
         "unit": "percentunit", "min": 0, "max": 1 } },
       "targets": [{ "expr": "avg(crypto_sim_confidence) or vector(0)",
         "legendFormat": "Avg Confidence",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -521,7 +521,7 @@
         "unit": "short", "min": -1, "max": 1 } },
       "targets": [{ "expr": "avg(crypto_sim_signal_strength) or vector(0)",
         "legendFormat": "Avg Strength",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
@@ -532,7 +532,7 @@
         "unit": "short" } },
       "targets": [{ "expr": "count(crypto_sim_confidence) or vector(0)",
         "legendFormat": "Symbols",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
 
@@ -542,7 +542,7 @@
       "fieldConfig": { "defaults": { "unit": "short", "min": 0 } },
       "targets": [{ "expr": "crypto_sim_decisions_total",
         "legendFormat": "{{symbol}} / {{action}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] },
         "displayMode": "gradient", "valueMode": "color" }
     },
@@ -552,7 +552,7 @@
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [{ "expr": "increase(crypto_sim_decisions_total[1h])",
         "legendFormat": "{{symbol}} {{action}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "tooltip": { "mode": "multi" } }
     },
 
@@ -568,7 +568,7 @@
         ] } } },
       "targets": [{ "expr": "crypto_sim_signal_strength",
         "legendFormat": "{{symbol}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "tooltip": { "mode": "multi" } }
     },
     {
@@ -578,7 +578,7 @@
         "custom": { "lineWidth": 2 } } },
       "targets": [{ "expr": "crypto_sim_confidence",
         "legendFormat": "{{symbol}}",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }],
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "tooltip": { "mode": "multi" } }
     }
   ],
