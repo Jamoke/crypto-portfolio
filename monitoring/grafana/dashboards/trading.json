@@ -450,7 +450,8 @@
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
       "targets": [
         { "expr": "backtest_trade_profit_pct{strategy=\"MomentumStrategy\"}", "legendFormat": "Momentum {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
-        { "expr": "backtest_trade_profit_pct{strategy=\"ScalpStrategy\"}", "legendFormat": "Breakout {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
+        { "expr": "backtest_trade_profit_pct{strategy=\"ScalpStrategy\"}", "legendFormat": "Breakout {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } },
+        { "expr": "backtest_trade_profit_pct{strategy=\"RecoveryMomentumStrategy\"}", "legendFormat": "Recovery {{pair}} #{{idx}}", "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" } }
       ],
       "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient" }
     },
