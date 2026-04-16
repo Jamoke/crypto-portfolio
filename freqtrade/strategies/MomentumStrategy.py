@@ -114,18 +114,53 @@ class MomentumStrategy(IStrategy):
           6. Price within 8% of EMA50       — not chasing, entering near support
           7. Volume above average           — real buying, not drift
         """
+        cond_ema200      = dataframe["close"] > dataframe["ema_200"]
+        cond_ema_cross   = dataframe["ema_50"] > dataframe["ema_200"]
+        cond_adx         = dataframe["adx"] > self.adx_threshold.value
+        cond_rsi_low     = dataframe["rsi"] > self.buy_rsi_low.value
+        cond_rsi_high    = dataframe["rsi"] < self.buy_rsi_high.value
+        cond_macd_pos    = dataframe["macdhist"] > 0
+        cond_macd_grow   = dataframe["macdhist"] > dataframe["macdhist"].shift(1)
+        cond_dist_low    = dataframe["dist_ema50_pct"] > -0.08
+        cond_dist_high   = dataframe["dist_ema50_pct"] < 0.12
+        cond_volume      = dataframe["volume"] > dataframe["volume_ma"] * 0.8
+
+        n = len(dataframe)
+        logger.info(
+            "[%s] Entry condition pass rates over %d candles: "
+            "ema200=%.1f%% ema_cross=%.1f%% adx=%.1f%% "
+            "rsi_low=%.1f%% rsi_high=%.1f%% rsi_band=%.1f%% "
+            "macd_pos=%.1f%% macd_grow=%.1f%% "
+            "dist_low=%.1f%% dist_high=%.1f%% volume=%.1f%% ALL=%.1f%%",
+            metadata["pair"], n,
+            cond_ema200.sum() / n * 100,
+            cond_ema_cross.sum() / n * 100,
+            cond_adx.sum() / n * 100,
+            cond_rsi_low.sum() / n * 100,
+            cond_rsi_high.sum() / n * 100,
+            (cond_rsi_low & cond_rsi_high).sum() / n * 100,
+            cond_macd_pos.sum() / n * 100,
+            cond_macd_grow.sum() / n * 100,
+            cond_dist_low.sum() / n * 100,
+            cond_dist_high.sum() / n * 100,
+            cond_volume.sum() / n * 100,
+            (cond_ema200 & cond_ema_cross & cond_adx & cond_rsi_low & cond_rsi_high
+             & cond_macd_pos & cond_macd_grow & cond_dist_low & cond_dist_high
+             & cond_volume).sum() / n * 100,
+        )
+
         dataframe.loc[
             (
-                (dataframe["close"] > dataframe["ema_200"])                     # Macro uptrend
-                & (dataframe["ema_50"] > dataframe["ema_200"])                  # Medium uptrend
-                & (dataframe["adx"] > self.adx_threshold.value)                # Trending market
-                & (dataframe["rsi"] > self.buy_rsi_low.value)                  # RSI not oversold
-                & (dataframe["rsi"] < self.buy_rsi_high.value)                 # RSI not overbought
-                & (dataframe["macdhist"] > 0)                                   # MACD histogram positive
-                & (dataframe["macdhist"] > dataframe["macdhist"].shift(1))      # MACD histogram growing
-                & (dataframe["dist_ema50_pct"] > -0.08)                        # Within 8% of EMA50
-                & (dataframe["dist_ema50_pct"] < 0.12)                         # Not too extended above EMA50
-                & (dataframe["volume"] > dataframe["volume_ma"] * 0.8)         # Decent volume
+                cond_ema200
+                & cond_ema_cross
+                & cond_adx
+                & cond_rsi_low
+                & cond_rsi_high
+                & cond_macd_pos
+                & cond_macd_grow
+                & cond_dist_low
+                & cond_dist_high
+                & cond_volume
             ),
             "enter_long",
         ] = 1
