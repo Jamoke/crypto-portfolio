@@ -133,135 +133,131 @@
 
     { "type": "row", "id": 200, "title": "Strategy Breakdown — Bot Performance", "gridPos": { "x": 0, "y": 27, "w": 24, "h": 1 }, "collapsed": false },
 
-    {
-      "id": 201, "type": "stat", "title": "Momentum Bot — Daily P&L",
-      "gridPos": { "x": 0, "y": 28, "w": 6, "h": 4 },
-      "fieldConfig": { "defaults": { "unit": "currencyUSD",
-        "color": { "mode": "thresholds" },
+    { "id": 201, "type": "stat", "title": "Momentum — Daily P&L",
+      "gridPos": { "x": 0, "y": 28, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
-      "targets": [{ "expr": "freqtrade_daily_profit_usd{bot=\"momentum\"}",
-        "legendFormat": "Momentum Daily P&L",
+      "targets": [{ "expr": "freqtrade_daily_profit_usd{bot=\"momentum\"}", "legendFormat": "Daily P&L",
         "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
-    },
-    {
-      "id": 202, "type": "stat", "title": "Scalp Bot — Daily P&L",
-      "gridPos": { "x": 6, "y": 28, "w": 6, "h": 4 },
-      "fieldConfig": { "defaults": { "unit": "currencyUSD",
-        "color": { "mode": "thresholds" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" } },
+
+    { "id": 202, "type": "stat", "title": "Scalp — Daily P&L",
+      "gridPos": { "x": 4, "y": 28, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
-      "targets": [{ "expr": "freqtrade_daily_profit_usd{bot=\"scalp\"}",
-        "legendFormat": "Scalp Daily P&L",
+      "targets": [{ "expr": "freqtrade_daily_profit_usd{bot=\"scalp\"}", "legendFormat": "Daily P&L",
         "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
-    },
-    {
-      "id": 203, "type": "gauge", "title": "Momentum Bot — Win Rate",
-      "gridPos": { "x": 12, "y": 28, "w": 6, "h": 4 },
-      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
-        "color": { "mode": "thresholds" },
-        "thresholds": { "steps": [
-          { "color": "red", "value": 0 },
-          { "color": "yellow", "value": 0.4 },
-          { "color": "green", "value": 0.6 }
-        ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" } },
+
+    { "id": 215, "type": "stat", "title": "Recovery — Daily P&L",
+      "gridPos": { "x": 8, "y": 28, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
+      "targets": [{ "expr": "freqtrade_daily_profit_usd{bot=\"recovery\"}", "legendFormat": "Daily P&L",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" } },
+
+    { "id": 203, "type": "gauge", "title": "Momentum — Win Rate",
+      "gridPos": { "x": 12, "y": 28, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.4 }, { "color": "green", "value": 0.6 }] } } },
       "targets": [{ "expr": "freqtrade_win_rate{bot=\"momentum\"}",
         "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
-    },
-    {
-      "id": 204, "type": "gauge", "title": "Scalp Bot — Win Rate",
-      "gridPos": { "x": 18, "y": 28, "w": 6, "h": 4 },
-      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
-        "color": { "mode": "thresholds" },
-        "thresholds": { "steps": [
-          { "color": "red", "value": 0 },
-          { "color": "yellow", "value": 0.4 },
-          { "color": "green", "value": 0.6 }
-        ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } } },
+
+    { "id": 204, "type": "gauge", "title": "Scalp — Win Rate",
+      "gridPos": { "x": 16, "y": 28, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.4 }, { "color": "green", "value": 0.6 }] } } },
       "targets": [{ "expr": "freqtrade_win_rate{bot=\"scalp\"}",
         "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
-    },
-    {
-      "id": 205, "type": "stat", "title": "Momentum Bot — Balance",
-      "gridPos": { "x": 0, "y": 32, "w": 6, "h": 4 },
-      "fieldConfig": { "defaults": { "unit": "currencyUSD",
-        "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } } },
+
+    { "id": 216, "type": "gauge", "title": "Recovery — Win Rate",
+      "gridPos": { "x": 20, "y": 28, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.4 }, { "color": "green", "value": 0.6 }] } } },
+      "targets": [{ "expr": "freqtrade_win_rate{bot=\"recovery\"}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } } },
+
+    { "id": 205, "type": "stat", "title": "Momentum — Balance",
+      "gridPos": { "x": 0, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "color": { "mode": "fixed", "fixedColor": "blue" } } },
       "targets": [{ "expr": "freqtrade_balance_usd{bot=\"momentum\"}",
         "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
-    },
-    {
-      "id": 206, "type": "stat", "title": "Scalp Bot — Balance",
-      "gridPos": { "x": 6, "y": 32, "w": 6, "h": 4 },
-      "fieldConfig": { "defaults": { "unit": "currencyUSD",
-        "color": { "mode": "fixed", "fixedColor": "purple" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" } },
+
+    { "id": 206, "type": "stat", "title": "Scalp — Balance",
+      "gridPos": { "x": 4, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "color": { "mode": "fixed", "fixedColor": "purple" } } },
       "targets": [{ "expr": "freqtrade_balance_usd{bot=\"scalp\"}",
         "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
-    },
-    {
-      "id": 207, "type": "stat", "title": "Momentum — Open Trades",
-      "gridPos": { "x": 12, "y": 32, "w": 6, "h": 4 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" } },
+
+    { "id": 217, "type": "stat", "title": "Recovery — Balance",
+      "gridPos": { "x": 8, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "color": { "mode": "fixed", "fixedColor": "teal" } } },
+      "targets": [{ "expr": "freqtrade_balance_usd{bot=\"recovery\"}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" } },
+
+    { "id": 207, "type": "stat", "title": "Momentum — Open Trades",
+      "gridPos": { "x": 12, "y": 32, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
       "targets": [{ "expr": "count(freqtrade_open_trades{bot=\"momentum\"} == 1) or vector(0)",
-        "legendFormat": "Open Trades",
-        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
-    },
-    {
-      "id": 208, "type": "stat", "title": "Scalp — Open Trades",
-      "gridPos": { "x": 18, "y": 32, "w": 6, "h": 4 },
+        "legendFormat": "Open Trades", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" } },
+
+    { "id": 208, "type": "stat", "title": "Scalp — Open Trades",
+      "gridPos": { "x": 16, "y": 32, "w": 4, "h": 4 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" } } },
       "targets": [{ "expr": "count(freqtrade_open_trades{bot=\"scalp\"} == 1) or vector(0)",
-        "legendFormat": "Open Trades",
-        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
-    },
-    {
-      "id": 209, "type": "timeseries", "title": "Per-Bot Daily Profit Over Time",
+        "legendFormat": "Open Trades", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" } },
+
+    { "id": 218, "type": "stat", "title": "Recovery — Open Trades",
+      "gridPos": { "x": 20, "y": 32, "w": 4, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "teal" } } },
+      "targets": [{ "expr": "count(freqtrade_open_trades{bot=\"recovery\"} == 1) or vector(0)",
+        "legendFormat": "Open Trades", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" } },
+
+    { "id": 209, "type": "timeseries", "title": "Per-Bot Daily Profit Over Time",
       "gridPos": { "x": 0, "y": 36, "w": 24, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
       "targets": [
-        { "expr": "freqtrade_daily_profit_usd{bot=\"momentum\"}", "legendFormat": "Momentum Bot",
+        { "expr": "freqtrade_daily_profit_usd{bot=\"momentum\"}", "legendFormat": "Momentum",
           "datasource": { "type": "prometheus", "uid": "prometheus" } },
-        { "expr": "freqtrade_daily_profit_usd{bot=\"scalp\"}", "legendFormat": "Scalp Bot",
+        { "expr": "freqtrade_daily_profit_usd{bot=\"scalp\"}", "legendFormat": "Scalp / Breakout",
+          "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "freqtrade_daily_profit_usd{bot=\"recovery\"}", "legendFormat": "Recovery",
           "datasource": { "type": "prometheus", "uid": "prometheus" } }
-      ]
-    },
-    {
-      "id": 210, "type": "bargauge", "title": "Open Trade Profit % by Pair — Momentum Bot",
-      "gridPos": { "x": 0, "y": 44, "w": 12, "h": 8 },
-      "fieldConfig": { "defaults": { "unit": "percentunit",
-        "color": { "mode": "thresholds" },
-        "thresholds": { "steps": [
-          { "color": "red", "value": -0.05 },
-          { "color": "yellow", "value": 0 },
-          { "color": "green", "value": 0.02 }
-        ] } } },
-      "targets": [{ "expr": "freqtrade_trade_profit_pct{bot=\"momentum\"}",
-        "legendFormat": "{{pair}}",
+      ] },
+
+    { "id": 210, "type": "bargauge", "title": "Open Trade Profit % by Pair — Momentum",
+      "gridPos": { "x": 0, "y": 44, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": -0.05 }, { "color": "yellow", "value": 0 }, { "color": "green", "value": 0.02 }] } } },
+      "targets": [{ "expr": "freqtrade_trade_profit_pct{bot=\"momentum\"}", "legendFormat": "{{pair}}",
         "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "horizontal", "displayMode": "gradient" }
-    },
-    {
-      "id": 211, "type": "bargauge", "title": "Open Trade Profit % by Pair — Scalp Bot",
-      "gridPos": { "x": 12, "y": 44, "w": 12, "h": 8 },
-      "fieldConfig": { "defaults": { "unit": "percentunit",
-        "color": { "mode": "thresholds" },
-        "thresholds": { "steps": [
-          { "color": "red", "value": -0.05 },
-          { "color": "yellow", "value": 0 },
-          { "color": "green", "value": 0.02 }
-        ] } } },
-      "targets": [{ "expr": "freqtrade_trade_profit_pct{bot=\"scalp\"}",
-        "legendFormat": "{{pair}}",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient" } },
+
+    { "id": 211, "type": "bargauge", "title": "Open Trade Profit % by Pair — Scalp",
+      "gridPos": { "x": 8, "y": 44, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": -0.05 }, { "color": "yellow", "value": 0 }, { "color": "green", "value": 0.02 }] } } },
+      "targets": [{ "expr": "freqtrade_trade_profit_pct{bot=\"scalp\"}", "legendFormat": "{{pair}}",
         "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "horizontal", "displayMode": "gradient" }
-    },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient" } },
+
+    { "id": 219, "type": "bargauge", "title": "Open Trade Profit % by Pair — Recovery",
+      "gridPos": { "x": 16, "y": 44, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": -0.05 }, { "color": "yellow", "value": 0 }, { "color": "green", "value": 0.02 }] } } },
+      "targets": [{ "expr": "freqtrade_trade_profit_pct{bot=\"recovery\"}", "legendFormat": "{{pair}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient" } },
 
     { "type": "row", "id": 300, "title": "Signal Quality — Claude Analyst", "gridPos": { "x": 0, "y": 52, "w": 24, "h": 1 }, "collapsed": false },
 
@@ -302,11 +298,18 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
 
-    { "id": 500, "type": "row", "title": "Live Dry-Run — Detailed Stats", "gridPos": { "x": 0, "y": 63, "w": 24, "h": 1 }, "collapsed": false },
+    { "id": 500, "type": "row", "title": "Live Dry-Run — Bot Performance", "gridPos": { "x": 0, "y": 63, "w": 24, "h": 1 }, "collapsed": false },
+
+    { "id": 509, "type": "text", "title": "", "gridPos": { "x": 0, "y": 64, "w": 8, "h": 1 },
+      "options": { "mode": "markdown", "content": "### Momentum" } },
+    { "id": 510, "type": "text", "title": "", "gridPos": { "x": 8, "y": 64, "w": 8, "h": 1 },
+      "options": { "mode": "markdown", "content": "### Scalp / Breakout" } },
+    { "id": 511, "type": "text", "title": "", "gridPos": { "x": 16, "y": 64, "w": 8, "h": 1 },
+      "options": { "mode": "markdown", "content": "### Recovery" } },
 
     {
-      "id": 501, "type": "stat", "title": "Momentum — Open Positions",
-      "gridPos": { "x": 0, "y": 64, "w": 4, "h": 4 },
+      "id": 501, "type": "stat", "title": "Open Positions",
+      "gridPos": { "x": 0, "y": 65, "w": 2, "h": 3 },
       "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
       "targets": [{ "expr": "freqtrade_open_trade_count{bot=\"momentum\"}",
@@ -314,17 +317,8 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
-      "id": 502, "type": "stat", "title": "Scalp — Open Positions",
-      "gridPos": { "x": 4, "y": 64, "w": 4, "h": 4 },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" },
-        "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
-      "targets": [{ "expr": "freqtrade_open_trade_count{bot=\"scalp\"}",
-        "legendFormat": "Open", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
-    },
-    {
-      "id": 503, "type": "stat", "title": "Momentum — Avg Trade Profit",
-      "gridPos": { "x": 8, "y": 64, "w": 4, "h": 4 },
+      "id": 503, "type": "stat", "title": "Avg Trade Profit",
+      "gridPos": { "x": 2, "y": 65, "w": 3, "h": 3 },
       "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2,
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
@@ -333,8 +327,28 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
-      "id": 504, "type": "stat", "title": "Scalp — Avg Trade Profit",
-      "gridPos": { "x": 12, "y": 64, "w": 4, "h": 4 },
+      "id": 505, "type": "stat", "title": "Max Drawdown",
+      "gridPos": { "x": 5, "y": 65, "w": 3, "h": 3 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.15 }] } } },
+      "targets": [{ "expr": "freqtrade_max_drawdown_pct{bot=\"momentum\"}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    {
+      "id": 502, "type": "stat", "title": "Open Positions",
+      "gridPos": { "x": 8, "y": 65, "w": 2, "h": 3 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+      "targets": [{ "expr": "freqtrade_open_trade_count{bot=\"scalp\"}",
+        "legendFormat": "Open", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 504, "type": "stat", "title": "Avg Trade Profit",
+      "gridPos": { "x": 10, "y": 65, "w": 3, "h": 3 },
       "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2,
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
@@ -343,18 +357,8 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
-      "id": 505, "type": "stat", "title": "Momentum — Max Drawdown",
-      "gridPos": { "x": 16, "y": 64, "w": 4, "h": 4 },
-      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2,
-        "color": { "mode": "thresholds" },
-        "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.15 }] } } },
-      "targets": [{ "expr": "freqtrade_max_drawdown_pct{bot=\"momentum\"}",
-        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
-    },
-    {
-      "id": 506, "type": "stat", "title": "Scalp — Max Drawdown",
-      "gridPos": { "x": 20, "y": 64, "w": 4, "h": 4 },
+      "id": 506, "type": "stat", "title": "Max Drawdown",
+      "gridPos": { "x": 13, "y": 65, "w": 3, "h": 3 },
       "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2,
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.15 }] } } },
@@ -362,13 +366,45 @@
         "datasource": { "type": "prometheus", "uid": "prometheus" } }],
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
+
+    {
+      "id": 512, "type": "stat", "title": "Open Positions",
+      "gridPos": { "x": 16, "y": 65, "w": 2, "h": 3 },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "blue", "value": 0 }] } } },
+      "targets": [{ "expr": "freqtrade_open_trade_count{bot=\"recovery\"}",
+        "legendFormat": "Open", "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 513, "type": "stat", "title": "Avg Trade Profit",
+      "gridPos": { "x": 18, "y": 65, "w": 3, "h": 3 },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
+      "targets": [{ "expr": "freqtrade_avg_trade_profit_pct{bot=\"recovery\"}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 514, "type": "stat", "title": "Max Drawdown",
+      "gridPos": { "x": 21, "y": 65, "w": 3, "h": 3 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.15 }] } } },
+      "targets": [{ "expr": "freqtrade_max_drawdown_pct{bot=\"recovery\"}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
     {
       "id": 507, "type": "timeseries", "title": "Wallet Balance Over Time",
       "gridPos": { "x": 0, "y": 68, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "unit": "currencyUSD", "custom": { "lineWidth": 2 } } },
       "targets": [
         { "expr": "freqtrade_balance_usd{bot=\"momentum\"}", "legendFormat": "Momentum", "datasource": { "type": "prometheus", "uid": "prometheus" } },
-        { "expr": "freqtrade_balance_usd{bot=\"scalp\"}", "legendFormat": "Scalp / Breakout", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+        { "expr": "freqtrade_balance_usd{bot=\"scalp\"}", "legendFormat": "Scalp / Breakout", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "freqtrade_balance_usd{bot=\"recovery\"}", "legendFormat": "Recovery", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ],
       "options": { "tooltip": { "mode": "multi" } }
     },
@@ -378,8 +414,9 @@
       "fieldConfig": { "defaults": { "unit": "percent", "custom": { "lineWidth": 2 },
         "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } } },
       "targets": [
-        { "expr": "freqtrade_open_unrealized_pnl_pct{bot=\"momentum\"}", "legendFormat": "Momentum unrealized", "datasource": { "type": "prometheus", "uid": "prometheus" } },
-        { "expr": "freqtrade_open_unrealized_pnl_pct{bot=\"scalp\"}", "legendFormat": "Scalp unrealized", "datasource": { "type": "prometheus", "uid": "prometheus" } }
+        { "expr": "freqtrade_open_unrealized_pnl_pct{bot=\"momentum\"}", "legendFormat": "Momentum", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "freqtrade_open_unrealized_pnl_pct{bot=\"scalp\"}", "legendFormat": "Scalp / Breakout", "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "freqtrade_open_unrealized_pnl_pct{bot=\"recovery\"}", "legendFormat": "Recovery", "datasource": { "type": "prometheus", "uid": "prometheus" } }
       ],
       "options": { "tooltip": { "mode": "multi" } }
     },
