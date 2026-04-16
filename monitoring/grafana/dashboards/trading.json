@@ -585,7 +585,7 @@
   "templating": {
     "list": [{
       "name": "DS_PROMETHEUS", "type": "datasource", "pluginId": "prometheus",
-      "hide": 2, "current": { "text": "Prometheus", "value": "Prometheus" }
+      "hide": 2, "current": { "text": "Prometheus", "value": "prometheus" }
     }]
   }
 }
