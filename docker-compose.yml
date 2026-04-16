@@ -46,7 +46,7 @@ services:
     container_name: freqtrade_recovery
     restart: unless-stopped
     volumes:
-      - freqtrade_recovery_data:/freqtrade/user_data
+      - ./freqtrade/user_data:/freqtrade/user_data
       - ./freqtrade/strategies:/freqtrade/user_data/strategies
       - ./freqtrade/config_recovery.json:/freqtrade/config.json
       - ./freqtrade/entrypoint.sh:/entrypoint.sh
@@ -421,7 +421,6 @@ volumes:
   analyst_logs:
   executor_logs:
   freqtrade_scalp_data:
-  freqtrade_recovery_data:
   trade_db:
   polymarket_db:
   freqtrade_freqai_data:

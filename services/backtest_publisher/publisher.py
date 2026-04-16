@@ -27,6 +27,7 @@ import json
 import time
 import glob
 import logging
+import zipfile
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, Response
@@ -69,12 +70,20 @@ def _safe(val, default=0.0):
 
 def parse_backtest_file(path: Path) -> dict | None:
     """
-    Parse a Freqtrade backtest result JSON.
-    Freqtrade stable exports one strategy per file when --export-filename is set.
+    Parse a Freqtrade backtest result file (.zip or .json).
+    Freqtrade stable (2025+) writes results as compressed .zip files.
     Returns dict of {strategy_name: parsed_data} or None on error.
     """
     try:
-        raw = json.loads(path.read_text())
+        if path.suffix == ".zip":
+            with zipfile.ZipFile(path) as zf:
+                json_names = [n for n in zf.namelist() if n.endswith(".json")]
+                if not json_names:
+                    logger.warning(f"{path}: no JSON found inside zip")
+                    return None
+                raw = json.loads(zf.read(json_names[0]))
+        else:
+            raw = json.loads(path.read_text())
     except Exception as e:
         logger.warning(f"Cannot read {path}: {e}")
         return None
@@ -180,10 +189,13 @@ def publish_metrics(strategy: str, data: dict):
 
 
 def scan_and_publish():
-    """Find all backtest JSON files and publish their metrics."""
-    files = list(RESULTS_DIR.glob("*.json"))
+    """Find all backtest result files (.zip or .json) and publish their metrics."""
+    files = [
+        p for p in sorted(RESULTS_DIR.glob("*"))
+        if p.suffix == ".zip" or (p.suffix == ".json" and not p.stem.endswith(".meta"))
+    ]
     if not files:
-        logger.info(f"No backtest JSON files found in {RESULTS_DIR}")
+        logger.info(f"No backtest result files found in {RESULTS_DIR}")
         return
 
     for path in sorted(files):
