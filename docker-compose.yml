@@ -37,6 +37,36 @@ services:
       - portfolio_net
 
   # ----------------------------------------------------------
+  # Freqtrade Recovery Bot — Recovery/ranging momentum strategy
+  # Catches early recovery phase before golden cross forms
+  # Same pairs as MomentumStrategy, port 8083
+  # ----------------------------------------------------------
+  freqtrade_recovery:
+    image: freqtradeorg/freqtrade:stable
+    container_name: freqtrade_recovery
+    restart: unless-stopped
+    volumes:
+      - freqtrade_recovery_data:/freqtrade/user_data
+      - ./freqtrade/strategies:/freqtrade/user_data/strategies
+      - ./freqtrade/config_recovery.json:/freqtrade/config.json
+      - ./freqtrade/entrypoint.sh:/entrypoint.sh
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    command: ["RecoveryMomentumStrategy"]
+    environment:
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+      - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}
+      - FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD}
+      - FREQTRADE_RECOVERY_JWT_SECRET=${FREQTRADE_RECOVERY_JWT_SECRET}
+      - FREQTRADE_RECOVERY_WS_TOKEN=${FREQTRADE_RECOVERY_WS_TOKEN}
+      - PI_LOCAL_IP=${PI_LOCAL_IP:-localhost}
+    ports:
+      - "8083:8083"
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
   # Freqtrade Scalp Bot — High-frequency 5m strategy
   # Separate instance, isolated $1000 dry-run wallet, port 8081
   # Pairs: SOL, ADA, LTC, DOGE, LINK, POL, SAND
@@ -391,6 +421,7 @@ volumes:
   analyst_logs:
   executor_logs:
   freqtrade_scalp_data:
+  freqtrade_recovery_data:
   trade_db:
   polymarket_db:
   freqtrade_freqai_data:

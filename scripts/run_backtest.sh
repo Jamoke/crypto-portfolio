@@ -1,16 +1,18 @@
 #!/bin/bash
-# Run Freqtrade backtests for both strategies over the last 90 days.
+# Run Freqtrade backtests over the last N days.
 # Uses --entrypoint freqtrade to bypass entrypoint.sh (which is only for 'trade' mode).
 #
 # Usage (from project root):
-#   bash scripts/run_backtest.sh          # last 90 days, both strategies
-#   bash scripts/run_backtest.sh 180      # last 180 days
+#   bash scripts/run_backtest.sh               # last 90 days, all strategies
+#   bash scripts/run_backtest.sh 180           # last 180 days, all strategies
 #   bash scripts/run_backtest.sh 90 momentum   # momentum only
+#   bash scripts/run_backtest.sh 90 recovery   # recovery only
+#   bash scripts/run_backtest.sh 90 scalp      # scalp only
 
 set -e
 
 DAYS=${1:-90}
-ONLY=${2:-"both"}
+ONLY=${2:-"all"}
 
 # Date range: DAYS ago → today (UTC). Supports Linux and macOS.
 if date -u -d "1 day ago" +%Y%m%d >/dev/null 2>&1; then
@@ -29,33 +31,38 @@ echo "========================================"
 echo ""
 
 # ── Download OHLCV data ───────────────────────────────────────────────────────
-# Both bots share Gate.io but use different pair lists from their config files.
+# Momentum and Recovery share the same pairs (config.json), one download covers both.
+# Scalp uses its own pair list (config_scalp.json).
 
-echo "▶ Downloading 4h data for momentum pairs..."
-docker compose run --rm --no-deps \
-  --entrypoint freqtrade \
-  freqtrade \
-  download-data \
-  --config /freqtrade/config.json \
-  --timerange "${TIMERANGE}" \
-  --timeframe 4h
-echo "✔ Momentum pair data downloaded"
+if [[ "${ONLY}" == "all" || "${ONLY}" == "momentum" || "${ONLY}" == "recovery" ]]; then
+  echo "▶ Downloading 4h data for momentum/recovery pairs..."
+  docker compose run --rm --no-deps \
+    --entrypoint freqtrade \
+    freqtrade \
+    download-data \
+    --config /freqtrade/config.json \
+    --timerange "${TIMERANGE}" \
+    --timeframe 4h
+  echo "✔ Momentum/recovery pair data downloaded"
+  echo ""
+fi
 
-echo ""
-echo "▶ Downloading 4h data for breakout pairs..."
-docker compose run --rm --no-deps \
-  --entrypoint freqtrade \
-  freqtrade_scalp \
-  download-data \
-  --config /freqtrade/config.json \
-  --timerange "${TIMERANGE}" \
-  --timeframe 4h
-echo "✔ Breakout pair data downloaded"
+if [[ "${ONLY}" == "all" || "${ONLY}" == "scalp" ]]; then
+  echo "▶ Downloading 4h data for breakout pairs..."
+  docker compose run --rm --no-deps \
+    --entrypoint freqtrade \
+    freqtrade_scalp \
+    download-data \
+    --config /freqtrade/config.json \
+    --timerange "${TIMERANGE}" \
+    --timeframe 4h
+  echo "✔ Breakout pair data downloaded"
+  echo ""
+fi
 
 # ── Run backtests ─────────────────────────────────────────────────────────────
 
-if [[ "${ONLY}" == "both" || "${ONLY}" == "momentum" ]]; then
-  echo ""
+if [[ "${ONLY}" == "all" || "${ONLY}" == "momentum" ]]; then
   echo "▶ Running MomentumStrategy backtest..."
   docker compose run --rm --no-deps \
     --entrypoint freqtrade \
@@ -68,10 +75,26 @@ if [[ "${ONLY}" == "both" || "${ONLY}" == "momentum" ]]; then
     --export trades \
     --export-filename /freqtrade/user_data/backtest_results/momentum_backtest.json
   echo "✔ MomentumStrategy backtest complete"
+  echo ""
 fi
 
-if [[ "${ONLY}" == "both" || "${ONLY}" == "scalp" ]]; then
+if [[ "${ONLY}" == "all" || "${ONLY}" == "recovery" ]]; then
+  echo "▶ Running RecoveryMomentumStrategy backtest..."
+  docker compose run --rm --no-deps \
+    --entrypoint freqtrade \
+    freqtrade_recovery \
+    backtesting \
+    --config /freqtrade/config.json \
+    --strategy RecoveryMomentumStrategy \
+    --timerange "${TIMERANGE}" \
+    --timeframe 4h \
+    --export trades \
+    --export-filename /freqtrade/user_data/backtest_results/recovery_backtest.json
+  echo "✔ RecoveryMomentumStrategy backtest complete"
   echo ""
+fi
+
+if [[ "${ONLY}" == "all" || "${ONLY}" == "scalp" ]]; then
   echo "▶ Running ScalpStrategy (TrendBreakout) backtest..."
   docker compose run --rm --no-deps \
     --entrypoint freqtrade \
@@ -84,6 +107,7 @@ if [[ "${ONLY}" == "both" || "${ONLY}" == "scalp" ]]; then
     --export trades \
     --export-filename /freqtrade/user_data/backtest_results/scalp_backtest.json
   echo "✔ ScalpStrategy backtest complete"
+  echo ""
 fi
 
 echo ""

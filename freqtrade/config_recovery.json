@@ -1,0 +1,86 @@
+{
+    "max_open_trades": 8,
+    "stake_currency": "USDC",
+    "stake_amount": "unlimited",
+    "tradable_balance_ratio": 0.99,
+    "fiat_display_currency": "USD",
+    "dry_run": true,
+    "dry_run_wallet": 1000,
+
+    "cancel_open_orders_on_exit": false,
+
+    "trading_mode": "spot",
+
+    "entry_pricing": {
+        "price_side": "same",
+        "use_order_book": true,
+        "order_book_top": 1,
+        "price_last_balance": 0.0,
+        "check_depth_of_market": {
+            "enabled": false,
+            "bids_to_ask_delta": 1
+        }
+    },
+
+    "exit_pricing": {
+        "price_side": "same",
+        "use_order_book": true,
+        "order_book_top": 1
+    },
+
+    "exchange": {
+        "name": "gateio",
+        "key": "",
+        "secret": "",
+        "ccxt_config": {},
+        "ccxt_async_config": {},
+        "pair_whitelist": [
+            "ETH/USDC",
+            "BTC/USDC",
+            "ARB/USDC",
+            "OP/USDC",
+            "UNI/USDC"
+        ],
+        "pair_blacklist": [
+            "XRP/.*",
+            "BSV/.*",
+            "LUNA/.*",
+            "HEX/.*"
+        ]
+    },
+
+    "pairlists": [
+        {
+            "method": "StaticPairList"
+        }
+    ],
+
+    "telegram": {
+        "enabled": false,
+        "token": "",
+        "chat_id": ""
+    },
+
+    "api_server": {
+        "enabled": true,
+        "listen_ip_address": "0.0.0.0",
+        "listen_port": 8083,
+        "verbosity": "error",
+        "enable_openapi": true,
+        "jwt_secret_key": "${FREQTRADE_RECOVERY_JWT_SECRET}",
+        "ws_token": "${FREQTRADE_RECOVERY_WS_TOKEN}",
+        "CORS_origins": ["http://localhost:3000", "http://${PI_LOCAL_IP}:3000", "http://${PI_LOCAL_IP}:8080", "http://localhost:8080"],
+        "username": "${FREQTRADE_USERNAME}",
+        "password": "${FREQTRADE_PASSWORD}"
+    },
+
+    "bot_name": "recovery-portfolio",
+    "initial_state": "running",
+    "force_entry_enable": false,
+    "internals": {
+        "process_throttle_secs": 5
+    },
+
+    "strategy": "RecoveryMomentumStrategy",
+    "strategy_path": "/freqtrade/user_data/strategies/"
+}
