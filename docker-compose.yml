@@ -208,6 +208,26 @@ services:
       - portfolio_net
 
   # ----------------------------------------------------------
+  # Backtest Publisher — reads Freqtrade backtest result JSONs from
+  # user_data/backtest_results/ and exposes strategy evaluation
+  # metrics on port 9105 for Prometheus/Grafana.
+  # Run scripts/run_backtest.sh first to generate result files.
+  # ----------------------------------------------------------
+  backtest_publisher:
+    build: ./services/backtest_publisher
+    container_name: backtest_publisher
+    restart: unless-stopped
+    environment:
+      - RESULTS_DIR=/results
+      - SCAN_INTERVAL=60
+    volumes:
+      - ./freqtrade/user_data/backtest_results:/results:ro
+    ports:
+      - "9105:9105"
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
   # Freqtrade Exporter — Prometheus exporter for Freqtrade bot metrics
   # Polls both bots' REST APIs and exposes /metrics on port 9101
   # ----------------------------------------------------------

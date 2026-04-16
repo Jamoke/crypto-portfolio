@@ -82,6 +82,36 @@ scrape_errors = Counter(
     "Number of failed Freqtrade API scrape attempts",
     ["bot"],
 )
+avg_trade_profit = Gauge(
+    "freqtrade_avg_trade_profit_pct",
+    "Average profit % across all closed trades",
+    ["bot"],
+)
+best_trade_profit = Gauge(
+    "freqtrade_best_trade_profit_pct",
+    "Best single closed trade profit %",
+    ["bot"],
+)
+worst_trade_profit = Gauge(
+    "freqtrade_worst_trade_profit_pct",
+    "Worst single closed trade profit %",
+    ["bot"],
+)
+max_drawdown = Gauge(
+    "freqtrade_max_drawdown_pct",
+    "Maximum drawdown from peak balance",
+    ["bot"],
+)
+open_trade_count = Gauge(
+    "freqtrade_open_trade_count",
+    "Number of currently open trades",
+    ["bot"],
+)
+open_trade_unrealized_pnl = Gauge(
+    "freqtrade_open_unrealized_pnl_pct",
+    "Sum of unrealized P&L % across all open trades",
+    ["bot"],
+)
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -177,9 +207,41 @@ def scrape_bot(bot_name: str, base_url: str):
         # ── Balance ───────────────────────────────────────────────────────────
         balance_data = ft_get(bot_name, base_url, "/balance")
         if balance_data:
-            # balance returns total in stake currency; approximate USD at face value for USDC
             total = float(balance_data.get("total", 0) or 0)
             balance_usd.labels(bot=bot_name).set(total)
+
+        # ── Open trade summary ────────────────────────────────────────────────
+        if isinstance(status, list):
+            open_trade_count.labels(bot=bot_name).set(len(status))
+            unrealized = sum(float(t.get("profit_pct", 0) or 0) for t in status)
+            open_trade_unrealized_pnl.labels(bot=bot_name).set(unrealized)
+        else:
+            open_trade_count.labels(bot=bot_name).set(0)
+            open_trade_unrealized_pnl.labels(bot=bot_name).set(0)
+
+        # ── Closed trade stats ────────────────────────────────────────────────
+        trades_data = ft_get(bot_name, base_url, "/trades?limit=500&offset=0")
+        if trades_data and isinstance(trades_data.get("trades"), list):
+            closed = [
+                t for t in trades_data["trades"]
+                if not t.get("is_open", True)
+            ]
+            if closed:
+                profits = [float(t.get("profit_pct", 0) or 0) * 100 for t in closed]
+                avg_trade_profit.labels(bot=bot_name).set(
+                    sum(profits) / len(profits)
+                )
+                best_trade_profit.labels(bot=bot_name).set(max(profits))
+                worst_trade_profit.labels(bot=bot_name).set(min(profits))
+
+                # Max drawdown: peak-to-trough on cumulative profit curve
+                cum, peak, max_dd = 0.0, 0.0, 0.0
+                for p in profits:
+                    cum += p
+                    peak = max(peak, cum)
+                    dd = (peak - cum) / (peak + 1e-9)
+                    max_dd = max(max_dd, dd)
+                max_drawdown.labels(bot=bot_name).set(max_dd)
 
     except Exception as e:
         logger.error(f"Scrape failed for {bot_name}: {e}", exc_info=True)

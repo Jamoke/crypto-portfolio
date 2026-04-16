@@ -27,3 +27,8 @@ scrape_configs:
     static_configs:
       - targets: ["claude_analyst:9102"]
     metrics_path: /metrics
+
+  - job_name: "backtest_publisher"
+    static_configs:
+      - targets: ["backtest_publisher:9105"]
+    metrics_path: /metrics
