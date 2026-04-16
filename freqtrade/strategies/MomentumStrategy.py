@@ -1,18 +1,23 @@
 """
-MomentumStrategy — Phase 1 baseline strategy for signal generation.
+MomentumStrategy — Trend-following with pullback entry.
 
-This strategy generates BUY/SELL signals based on:
-  - RSI (Relative Strength Index) for momentum
-  - EMA crossover (12/26) for trend direction
-  - MACD for trend confirmation
+Design goals:
+  - Only trade in confirmed uptrends (price above EMA 200)
+  - Enter on pullbacks, not at the top of moves
+  - Minimum 10% profit target; trailing stop lets winners run further
+  - 3.33% hard stop → 3:1 risk/reward vs 10% target
+  - ADX filter keeps strategy out of choppy, sideways markets
 
-Running in DRY-RUN mode. Signals are also published to Redis so
-the Claude Analyst and DeFi Executor can consume them.
+Risk/Reward:
+  - Hard stop:          -3.33%
+  - Minimum exit:       +10.0% (trailing activates here)
+  - Trail from peak:     5.0%  (after 10% reached)
+  - Example: price hits +20%, trail exits at +15%
 
-All parameters are read from strategy_config.yaml at startup.
+Pairs (config.json): BTC/USDC, ETH/USDC, ARB/USDC, MATIC/USDC, OP/USDC, AAVE/USDC, UNI/USDC
+Timeframe: 4h
 """
 
-import yaml
 import json
 import logging
 
@@ -22,201 +27,161 @@ try:
 except ImportError:
     REDIS_AVAILABLE = False
     redis = None  # type: ignore
+
 from datetime import datetime
-from pathlib import Path
-from freqtrade.strategy import IStrategy, DecimalParameter, IntParameter
+from freqtrade.strategy import IStrategy, IntParameter
 from pandas import DataFrame
 import talib.abstract as ta
 import freqtrade.vendor.qtpylib.indicators as qtpylib
 
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = Path("/app/config/strategy_config.yaml")
-
-
-def load_strategy_config() -> dict:
-    """Load momentum params from YAML. Falls back to defaults if unavailable."""
-    try:
-        with open(CONFIG_PATH) as f:
-            cfg = yaml.safe_load(f)
-        return cfg.get("strategies", {}).get("momentum", {})
-    except Exception as e:
-        logger.warning(f"Could not load strategy config: {e}. Using defaults.")
-        return {}
-
 
 class MomentumStrategy(IStrategy):
-    """
-    Momentum-based strategy using RSI + EMA crossover + MACD.
-    Parameters are driven by strategy_config.yaml.
-    """
 
     INTERFACE_VERSION = 3
 
-    # Minimal ROI — let stop losses and signals handle exits
-    minimal_roi = {
-        "0": 0.10,    # 10% take profit
-        "60": 0.05,   # 5% after 60 minutes
-        "240": 0.03,  # 3% after 4 hours
-    }
+    # ── Risk / Reward ─────────────────────────────────────────────────────────
+    # Hard stop at 3.33% → 3:1 ratio vs 10% minimum target.
+    # 50% ROI is a safety net only — the trailing stop handles real exits.
+    minimal_roi = {"0": 0.50}
 
-    # Trailing stop — overridden by risk_config.yaml in production
-    stoploss = -0.10
+    stoploss = -0.033                        # 3.33% hard stop
     trailing_stop = True
-    trailing_stop_positive = 0.02
-    trailing_stop_positive_offset = 0.05
-    trailing_only_offset_is_reached = True
+    trailing_stop_positive = 0.05            # 5% trail from peak
+    trailing_stop_positive_offset = 0.10     # Trail activates once +10% is reached
+    trailing_only_offset_is_reached = True   # Hard stop applies until +10%
 
+    # ── Timeframe ─────────────────────────────────────────────────────────────
     timeframe = "4h"
     process_only_new_candles = True
     use_exit_signal = True
-    exit_profit_only = False
+    exit_profit_only = True      # Never exit at a loss via signal — let stoploss handle it
     ignore_roi_if_entry_signal = False
 
-    startup_candle_count: int = 30
+    startup_candle_count: int = 210  # Need 200 for EMA200 + warmup
 
-    # Hyperopt parameters (can be tuned with freqtrade hyperopt)
-    buy_rsi = IntParameter(25, 45, default=35, space="buy")
-    sell_rsi = IntParameter(60, 80, default=68, space="sell")
+    # ── Hyperopt parameters ───────────────────────────────────────────────────
+    buy_rsi_low  = IntParameter(35, 50, default=42, space="buy")
+    buy_rsi_high = IntParameter(50, 62, default=58, space="buy")
+    adx_threshold = IntParameter(20, 35, default=25, space="buy")
 
     def __init__(self, config: dict) -> None:
         super().__init__(config)
-        self._strategy_cfg = load_strategy_config()
-        self._timeframe = self._strategy_cfg.get("timeframe", "4h")
-
-        # Redis connection for publishing signals
         self._redis = None
         if REDIS_AVAILABLE:
             try:
                 self._redis = redis.from_url("redis://redis:6379", decode_responses=True)
-                logger.info("Connected to Redis for signal publishing")
             except Exception as e:
-                logger.warning(f"Redis unavailable: {e}. Signals will not be published.")
-        else:
-            logger.warning("redis package not installed. Signal publishing disabled.")
+                logger.warning(f"Redis unavailable: {e}")
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """Calculate all technical indicators."""
 
-        cfg = self._strategy_cfg.get("indicators", {})
-        rsi_period = cfg.get("rsi", {}).get("period", 14)
-        ema_fast = cfg.get("ema", {}).get("fast_period", 12)
-        ema_slow = cfg.get("ema", {}).get("slow_period", 26)
-        macd_fast = cfg.get("macd", {}).get("fast", 12)
-        macd_slow = cfg.get("macd", {}).get("slow", 26)
-        macd_signal = cfg.get("macd", {}).get("signal", 9)
-        bb_period = 20
+        # ── Trend structure ───────────────────────────────────────────────────
+        dataframe["ema_50"]  = ta.EMA(dataframe, timeperiod=50)
+        dataframe["ema_200"] = ta.EMA(dataframe, timeperiod=200)
 
-        # RSI
-        dataframe["rsi"] = ta.RSI(dataframe, timeperiod=rsi_period)
+        # ── Momentum ──────────────────────────────────────────────────────────
+        dataframe["rsi"] = ta.RSI(dataframe, timeperiod=14)
 
-        # EMA crossover
-        dataframe["ema_fast"] = ta.EMA(dataframe, timeperiod=ema_fast)
-        dataframe["ema_slow"] = ta.EMA(dataframe, timeperiod=ema_slow)
-        dataframe["ema_cross"] = qtpylib.crossed_above(
-            dataframe["ema_fast"], dataframe["ema_slow"]
-        )
-
-        # MACD
-        macd = ta.MACD(
-            dataframe,
-            fastperiod=macd_fast,
-            slowperiod=macd_slow,
-            signalperiod=macd_signal,
-        )
-        dataframe["macd"] = macd["macd"]
+        macd = ta.MACD(dataframe, fastperiod=12, slowperiod=26, signalperiod=9)
+        dataframe["macd"]       = macd["macd"]
         dataframe["macdsignal"] = macd["macdsignal"]
-        dataframe["macdhist"] = macd["macdhist"]
+        dataframe["macdhist"]   = macd["macdhist"]
 
-        # Bollinger Bands (for additional context)
-        bollinger = qtpylib.bollinger_bands(
-            qtpylib.typical_price(dataframe), window=bb_period, stds=2
-        )
-        dataframe["bb_lower"] = bollinger["lower"]
-        dataframe["bb_mid"] = bollinger["mid"]
-        dataframe["bb_upper"] = bollinger["upper"]
-        dataframe["bb_width"] = (
-            dataframe["bb_upper"] - dataframe["bb_lower"]
-        ) / dataframe["bb_mid"]
+        # ── Trend strength ────────────────────────────────────────────────────
+        dataframe["adx"] = ta.ADX(dataframe, timeperiod=14)
 
-        # Volume MA for confirmation
+        # ── Volume ────────────────────────────────────────────────────────────
         dataframe["volume_ma"] = ta.SMA(dataframe["volume"], timeperiod=20)
+
+        # ── Pullback quality ──────────────────────────────────────────────────
+        # How far price is from EMA50 — negative means below (pullback into support)
+        dataframe["dist_ema50_pct"] = (
+            (dataframe["close"] - dataframe["ema_50"]) / dataframe["ema_50"]
+        )
 
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """Define BUY signal conditions."""
-
-        cfg = self._strategy_cfg.get("indicators", {})
-        rsi_buy = self._strategy_cfg.get("indicators", {}).get("rsi", {}).get(
-            "buy_threshold", self.buy_rsi.value
-        )
-
+        """
+        Buy when all of:
+          1. Price is above EMA200          — macro uptrend confirmed
+          2. EMA50 is above EMA200          — medium-term trend bullish
+          3. ADX > threshold                — market is trending, not choppy
+          4. RSI in pullback zone (42–58)   — pulled back but not breaking down
+          5. MACD histogram turning positive — momentum resuming after pullback
+          6. Price within 8% of EMA50       — not chasing, entering near support
+          7. Volume above average           — real buying, not drift
+        """
         dataframe.loc[
             (
-                (dataframe["rsi"] > rsi_buy)           # RSI recovering from oversold
-                & (dataframe["rsi"] < 60)               # Not already overbought
-                & (dataframe["ema_fast"] > dataframe["ema_slow"])  # Bullish EMA
-                & (dataframe["macd"] > dataframe["macdsignal"])    # MACD bullish
-                & (dataframe["volume"] > dataframe["volume_ma"])   # Above avg volume
-                & (dataframe["close"] > dataframe["bb_mid"])       # Above BB midline
+                (dataframe["close"] > dataframe["ema_200"])                     # Macro uptrend
+                & (dataframe["ema_50"] > dataframe["ema_200"])                  # Medium uptrend
+                & (dataframe["adx"] > self.adx_threshold.value)                # Trending market
+                & (dataframe["rsi"] > self.buy_rsi_low.value)                  # RSI not oversold
+                & (dataframe["rsi"] < self.buy_rsi_high.value)                 # RSI not overbought
+                & (dataframe["macdhist"] > 0)                                   # MACD histogram positive
+                & (dataframe["macdhist"] > dataframe["macdhist"].shift(1))      # MACD histogram growing
+                & (dataframe["dist_ema50_pct"] > -0.08)                        # Within 8% of EMA50
+                & (dataframe["dist_ema50_pct"] < 0.12)                         # Not too extended above EMA50
+                & (dataframe["volume"] > dataframe["volume_ma"] * 0.8)         # Decent volume
             ),
             "enter_long",
         ] = 1
 
-        # Publish signal to Redis for other services
         self._publish_signal(dataframe, metadata["pair"], "entry")
-
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """Define SELL signal conditions."""
+        """
+        Signal-based exit (supplements trailing stop):
+          - RSI above 75: significantly overbought
+          - Price crosses below EMA50: trend structure broken
+          - MACD crosses below signal: momentum reversing
 
-        cfg = self._strategy_cfg.get("indicators", {})
-        rsi_sell = self._strategy_cfg.get("indicators", {}).get("rsi", {}).get(
-            "sell_threshold", self.sell_rsi.value
-        )
-
+        Note: exit_profit_only=True means these signals only fire when in profit.
+        The trailing stop handles the actual exit in most cases.
+        """
         dataframe.loc[
             (
-                (dataframe["rsi"] > rsi_sell)          # Overbought
-                | (dataframe["macd"] < dataframe["macdsignal"])  # MACD bearish cross
+                (dataframe["rsi"] > 75)                                          # Overbought
+                | (qtpylib.crossed_below(dataframe["close"], dataframe["ema_50"]))  # Trend break
+                | (
+                    (dataframe["macd"] < dataframe["macdsignal"])               # MACD bearish cross
+                    & (dataframe["rsi"] > 60)                                    # Only when extended
+                )
             ),
             "exit_long",
         ] = 1
 
         self._publish_signal(dataframe, metadata["pair"], "exit")
-
         return dataframe
 
     def _publish_signal(self, dataframe: DataFrame, pair: str, signal_type: str):
-        """Publish latest signal to Redis for DeFi executor and Claude analyst."""
         if self._redis is None or dataframe.empty:
             return
-
         try:
             last = dataframe.iloc[-1]
             signal = {
-                "pair": pair,
+                "pair":        pair,
                 "signal_type": signal_type,
-                "timestamp": datetime.utcnow().isoformat(),
-                "source": "momentum_strategy",
+                "timestamp":   datetime.utcnow().isoformat(),
+                "source":      "momentum_strategy",
                 "indicators": {
-                    "rsi": round(float(last.get("rsi", 0)), 2),
-                    "macd": round(float(last.get("macd", 0)), 6),
-                    "macdsignal": round(float(last.get("macdsignal", 0)), 6),
-                    "ema_fast": round(float(last.get("ema_fast", 0)), 4),
-                    "ema_slow": round(float(last.get("ema_slow", 0)), 4),
-                    "bb_width": round(float(last.get("bb_width", 0)), 4),
+                    "rsi":            round(float(last.get("rsi", 0)), 2),
+                    "adx":            round(float(last.get("adx", 0)), 2),
+                    "macd":           round(float(last.get("macd", 0)), 6),
+                    "macdhist":       round(float(last.get("macdhist", 0)), 6),
+                    "ema_50":         round(float(last.get("ema_50", 0)), 4),
+                    "ema_200":        round(float(last.get("ema_200", 0)), 4),
+                    "dist_ema50_pct": round(float(last.get("dist_ema50_pct", 0)), 4),
                 },
                 "close_price": round(float(last["close"]), 4),
-                "enter_long": int(last.get("enter_long", 0)),
-                "exit_long": int(last.get("exit_long", 0)),
+                "enter_long":  int(last.get("enter_long", 0)),
+                "exit_long":   int(last.get("exit_long", 0)),
             }
-
             key = f"signals:momentum:{pair.replace('/', '_')}"
-            self._redis.setex(key, 86400, json.dumps(signal))  # Expire in 24h
-            logger.debug(f"Published signal to Redis: {key}")
-
+            self._redis.setex(key, 86400, json.dumps(signal))
         except Exception as e:
-            logger.warning(f"Failed to publish signal to Redis: {e}")
+            logger.warning(f"Failed to publish signal: {e}")
