@@ -94,6 +94,17 @@ strategies:
       - crypto
       - technology
       - macro_economy
+    # Whale analytics — ranks profitable Polymarket wallets from on-chain
+    # order-match history. Runs as a read-only background feed regardless
+    # of prediction_markets.enabled; disable here to fully skip it.
+    whales:
+      enabled: true
+      refresh_hours: 24       # How often to re-pull the subgraph
+      lookback_days: 90       # History window for aggregation
+      min_trades: 100         # Wallet must have at least this many closed legs
+      min_win_rate: 0.65      # ...and at least this win rate on closed legs
+      min_pnl_usd: 0.0        # ...and realized PnL >= this threshold (USD)
+      top_n: 50               # Keep only the top N by realized PnL
     notes: "Requires Phase 4 completion. Leave disabled until then."
 
   # --- TradingView webhook signals ---

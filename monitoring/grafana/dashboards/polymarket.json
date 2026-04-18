@@ -1,0 +1,154 @@
+{
+  "title": "Polymarket — Scanner & Whale Analytics",
+  "uid": "polymarket-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-7d", "to": "now" },
+  "description": "Polymarket service observability: market scanner, opportunities, simulated positions, and on-chain whale analytics (Phase A). Extended in Phase B with reject reasons, Kelly sizing, and exit triggers.",
+  "panels": [
+
+    { "type": "row", "id": 100, "title": "Scanner Summary", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 101, "type": "stat", "title": "Markets scanned (1h)",
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "targets": [{ "expr": "increase(polymarket_markets_scanned_total[1h])",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 102, "type": "stat", "title": "Opportunities (24h)",
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "blue", "value": null },
+          { "color": "green", "value": 1 }
+        ] } } },
+      "targets": [{ "expr": "increase(polymarket_opportunities_total[24h])",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 103, "type": "stat", "title": "Open simulated positions",
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" } } },
+      "targets": [{ "expr": "polymarket_positions_open",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 104, "type": "stat", "title": "Opportunity rate (per 100 scans)",
+      "description": "Rough yield of the scanner — very high values warrant checking for prompt/config drift.",
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "none",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 10 },
+          { "color": "red", "value": 25 }
+        ] } } },
+      "targets": [{
+        "expr": "100 * increase(polymarket_opportunities_total[24h]) / clamp_min(increase(polymarket_markets_scanned_total[24h]), 1)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    { "type": "row", "id": 200, "title": "Whale Analytics (Phase A)", "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 201, "type": "stat", "title": "Whales tracked",
+      "description": "Count of wallets meeting min_trades AND min_win_rate AND min_pnl thresholds from strategy_config.yaml.",
+      "gridPos": { "x": 0, "y": 6, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": null },
+          { "color": "yellow", "value": 1 },
+          { "color": "green", "value": 10 }
+        ] } } },
+      "targets": [{ "expr": "polymarket_whales_tracked",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 202, "type": "stat", "title": "Events consumed (last refresh)",
+      "gridPos": { "x": 6, "y": 6, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "targets": [{ "expr": "polymarket_whale_events_seen",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 203, "type": "stat", "title": "Hours since last refresh",
+      "description": "Warn if this exceeds the configured refresh_hours (default 24h).",
+      "gridPos": { "x": 12, "y": 6, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "h",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 26 },
+          { "color": "red", "value": 48 }
+        ] } } },
+      "targets": [{
+        "expr": "(time() - polymarket_whale_refresh_last_success_timestamp) / 3600",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 204, "type": "stat", "title": "Refresh failures (24h)",
+      "gridPos": { "x": 18, "y": 6, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 1 },
+          { "color": "red", "value": 3 }
+        ] } } },
+      "targets": [{ "expr": "increase(polymarket_whale_refresh_failures_total[24h])",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    {
+      "id": 210, "type": "timeseries", "title": "Whale refresh duration",
+      "description": "p50/p95 of whale refresh wall-clock time. Watch for growth indicating subgraph slowness or event-volume creep.",
+      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "s",
+        "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum by (le) (rate(polymarket_whale_refresh_duration_seconds_bucket[6h])))",
+          "legendFormat": "p50",
+          "datasource": { "type": "prometheus", "uid": "prometheus" } },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(polymarket_whale_refresh_duration_seconds_bucket[6h])))",
+          "legendFormat": "p95",
+          "datasource": { "type": "prometheus", "uid": "prometheus" } }
+      ]
+    },
+    {
+      "id": 211, "type": "timeseries", "title": "Whales tracked over time",
+      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [{ "expr": "polymarket_whales_tracked",
+        "legendFormat": "whales",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }]
+    },
+
+    { "type": "row", "id": 900, "title": "Whale roster (top 50)", "gridPos": { "x": 0, "y": 18, "w": 24, "h": 1 }, "collapsed": false },
+    {
+      "id": 901, "type": "text", "title": "How to view the current whale roster",
+      "gridPos": { "x": 0, "y": 19, "w": 24, "h": 4 },
+      "options": {
+        "mode": "markdown",
+        "content": "The ranked roster of profitable wallets is stored in Redis and SQLite, not Prometheus (addresses + PnL values don't fit the metric model). To inspect the current set:\n\n```bash\ndocker compose exec redis redis-cli GET signals:polymarket:whales:summary | jq '.top[0:20]'\ndocker compose exec polymarket sqlite3 /app/data/polymarket.db \\\n    'SELECT address, trades, win_rate, total_pnl FROM whales ORDER BY total_pnl DESC LIMIT 20'\n```\n\nThe set refreshes every 24h (configurable via `prediction_markets.whales.refresh_hours`)."
+      }
+    }
+  ],
+  "templating": {
+    "list": [{
+      "name": "DS_PROMETHEUS", "type": "datasource", "pluginId": "prometheus",
+      "hide": 2, "current": { "text": "Prometheus", "value": "prometheus" }
+    }]
+  }
+}

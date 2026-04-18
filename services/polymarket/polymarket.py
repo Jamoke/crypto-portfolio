@@ -23,6 +23,7 @@ import os
 import json
 import time
 import logging
+import threading
 import yaml
 import redis
 import requests
@@ -30,7 +31,9 @@ import anthropic
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
+
+import whale_tracker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -55,6 +58,17 @@ claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 markets_scanned   = Counter("polymarket_markets_scanned_total", "Markets scanned per cycle")
 opportunities     = Counter("polymarket_opportunities_total", "Opportunities identified")
 positions_open    = Gauge("polymarket_positions_open", "Currently open prediction market positions")
+
+# Phase A — whale tracker metrics
+whales_tracked            = Gauge("polymarket_whales_tracked", "Whale addresses passing filter threshold")
+whale_refresh_duration    = Histogram("polymarket_whale_refresh_duration_seconds",
+                                      "Duration of whale refresh runs")
+whale_refresh_last_success = Gauge("polymarket_whale_refresh_last_success_timestamp",
+                                   "Unix timestamp of the last successful whale refresh")
+whale_refresh_failures    = Counter("polymarket_whale_refresh_failures_total",
+                                    "Whale refresh attempts that raised an exception")
+whale_events_seen         = Gauge("polymarket_whale_events_seen",
+                                  "OrderFilled events consumed during the latest whale refresh")
 
 
 def load_pm_config() -> dict:
@@ -381,6 +395,47 @@ def run_polymarket_cycle():
     logger.info(f"Polymarket scan complete. Checked {min(len(markets), 30)} markets, found {opps_found} opportunities.")
 
 
+# ── Whale refresh worker (Phase A) ────────────────────────────────────────────
+
+def whale_refresh_worker(stop_event: threading.Event):
+    """
+    Background loop that refreshes the whale set periodically.
+    Runs independently of the market scan cycle; the scanner (Phase B) reads
+    the whale set from Redis whenever it needs it.
+
+    Refresh cadence comes from prediction_markets.whales.refresh_hours
+    (default 24). The whale refresh is a no-op if POLYMARKET_SUBGRAPH_URL
+    is unset, so enabling this loop is safe even before the subgraph URL
+    is provisioned.
+    """
+    while not stop_event.is_set():
+        pm_cfg = load_pm_config()
+        whales_cfg = pm_cfg.get("whales", {}) or {}
+        refresh_hours = float(whales_cfg.get("refresh_hours", 24))
+
+        if not whales_cfg.get("enabled", True):
+            logger.info("whale tracker disabled in config; sleeping %.1fh", refresh_hours)
+        else:
+            started = time.monotonic()
+            try:
+                with whale_refresh_duration.time():
+                    summary = whale_tracker.refresh_whales(whales_cfg, redis_client=r)
+                whales_tracked.set(summary.get("whales_count", 0))
+                whale_events_seen.set(summary.get("events_seen", 0))
+                whale_refresh_last_success.set(time.time())
+            except Exception as e:
+                whale_refresh_failures.inc()
+                logger.error("whale refresh failed after %.1fs: %s",
+                             time.monotonic() - started, e, exc_info=True)
+
+        # Sleep in short increments so a stop_event can interrupt promptly.
+        sleep_total = refresh_hours * 3600
+        slept = 0.0
+        while slept < sleep_total and not stop_event.is_set():
+            time.sleep(min(60, sleep_total - slept))
+            slept += 60
+
+
 if __name__ == "__main__":
     logger.info(f"Polymarket Service started (simulation={SIMULATION_MODE})")
 
@@ -397,6 +452,19 @@ if __name__ == "__main__":
             "Set prediction_markets.enabled: true to activate. "
             "Service will check every 30 minutes."
         )
+
+    # Start the whale refresh background thread regardless of the
+    # prediction_markets.enabled gate — whale analytics is a pure
+    # read-only feed, useful even when the scanner is idle.
+    stop_event = threading.Event()
+    whale_thread = threading.Thread(
+        target=whale_refresh_worker,
+        args=(stop_event,),
+        name="whale-refresh",
+        daemon=True,
+    )
+    whale_thread.start()
+    logger.info("whale refresh worker started")
 
     time.sleep(30)
 

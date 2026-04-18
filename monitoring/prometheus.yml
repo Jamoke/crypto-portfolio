@@ -32,3 +32,8 @@ scrape_configs:
     static_configs:
       - targets: ["backtest_publisher:9105"]
     metrics_path: /metrics
+
+  - job_name: "polymarket"
+    static_configs:
+      - targets: ["polymarket:9104"]
+    metrics_path: /metrics
