@@ -88,8 +88,25 @@ strategies:
     platform: polymarket
     network: polygon
     min_edge_percent: 5.0    # Only bet when Claude estimates >5% edge vs market odds
-    max_per_market: 3%       # Max 3% of portfolio per single market
+    max_per_market: 3%       # Max 3% of portfolio per single market (hard ceiling on Kelly)
     min_confidence: 0.75
+    # Phase B scanner filters — any market failing any of these is rejected
+    # before it even reaches Claude for analysis. Rejection reason is
+    # recorded in polymarket_rejects_total for Grafana triage.
+    min_depth_usd: 500        # Orderbook must have this much liquidity on each side
+    min_volume_usd: 50000     # 24h volume floor — below this, slippage eats edge
+    min_hours_to_resolution: 4    # Too-late markets are priced in
+    max_hours_to_resolution: 168  # Too-slow markets tie up capital
+    # Quarter-Kelly sizing — cap on position sizing assuming Claude's
+    # probability estimate is calibrated (it may not be; see Phase C).
+    # Hard per-market ceiling from max_per_market still applies on top.
+    kelly_cap: 0.25
+    # Phase B exit triggers — applied by exit_monitor.py every 5 min
+    exit:
+      target_fraction: 0.85   # Take profit at 85% of expected gap
+      volume_spike_multiplier: 3.0   # 10m vol / 24h avg vol threshold
+      stale_hours: 24         # Time-decay window
+      stale_price_tolerance: 0.02   # Price hasn't moved this much → stale
     categories:              # Polymarket market categories to scan
       - crypto
       - technology

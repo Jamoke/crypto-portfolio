@@ -34,6 +34,8 @@ from datetime import datetime, timezone, timedelta
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
 import whale_tracker
+import exit_monitor
+from sizing import kelly_size
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -70,6 +72,19 @@ whale_refresh_failures    = Counter("polymarket_whale_refresh_failures_total",
 whale_events_seen         = Gauge("polymarket_whale_events_seen",
                                   "OrderFilled events consumed during the latest whale refresh")
 
+# Phase B — scanner filter and sizing metrics
+rejects          = Counter("polymarket_rejects_total",
+                           "Markets rejected by scanner filters, by reason",
+                           ["reason"])
+kelly_fraction   = Histogram("polymarket_kelly_fraction",
+                             "Distribution of computed Kelly fractions on opportunities",
+                             buckets=[0.0, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.25])
+whale_concurrences = Counter("polymarket_whale_concurrences_total",
+                             "Opportunities where at least one tracked whale holds the same side")
+exits            = Counter("polymarket_exits_total",
+                           "Simulated position exits, by reason",
+                           ["reason"])
+
 
 def load_pm_config() -> dict:
     try:
@@ -82,6 +97,13 @@ def load_pm_config() -> dict:
 
 
 # ── Database ──────────────────────────────────────────────────────────────────
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
+    """SQLite ADD COLUMN is not idempotent — check pragma first."""
+    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
 
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -104,6 +126,16 @@ def init_db():
             simulation      INTEGER DEFAULT 1
         )
     """)
+    # Phase B migration — idempotent per _ensure_column
+    _ensure_column(conn, "positions", "expected_gap",      "REAL")
+    _ensure_column(conn, "positions", "kelly_fraction",    "REAL")
+    _ensure_column(conn, "positions", "whale_concurrence", "INTEGER DEFAULT 0")
+    _ensure_column(conn, "positions", "exit_price",        "REAL")
+    _ensure_column(conn, "positions", "exit_reason",       "TEXT")
+    _ensure_column(conn, "positions", "claude_model",      "TEXT")
+    _ensure_column(conn, "positions", "depth_usd",         "REAL")
+    _ensure_column(conn, "positions", "hours_to_resolution", "REAL")
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS scans (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -153,6 +185,148 @@ def fetch_active_markets(categories: list[str]) -> list[dict]:
     logger.info(f"Fetched {len(all_markets)} markets, {len(filtered)} match categories: {categories}")
     markets_scanned.inc(len(filtered))
     return filtered
+
+
+def fetch_orderbook_depth(token_id: str) -> float:
+    """
+    Fetch the Polymarket CLOB orderbook for a token and return the
+    minimum USD-denominated depth across bid and ask sides (top 10 levels).
+
+    Returns 0.0 on any error — caller treats that as "depth unknown,"
+    which gets rejected by the min_depth filter. Read-only.
+    """
+    try:
+        resp = requests.get(
+            f"{POLYMARKET_CLOB_BASE}/book",
+            params={"token_id": token_id},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        book = resp.json()
+    except Exception as e:
+        logger.debug(f"orderbook fetch failed for {token_id[:10]}: {e}")
+        return 0.0
+
+    def _side_depth(levels) -> float:
+        total = 0.0
+        for lvl in (levels or [])[:10]:
+            try:
+                total += float(lvl.get("price", 0) or 0) * float(lvl.get("size", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+        return total
+
+    bid_depth = _side_depth(book.get("bids"))
+    ask_depth = _side_depth(book.get("asks"))
+    return min(bid_depth, ask_depth)
+
+
+def hours_to_resolution(market: dict) -> float | None:
+    """Parse market.endDate into hours-from-now. Returns None if unparseable."""
+    end = market.get("endDate") or market.get("end_date")
+    if not end:
+        return None
+    try:
+        # Polymarket returns ISO-8601 strings, sometimes with 'Z', sometimes '+00:00'.
+        iso = end.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        delta = dt - datetime.now(timezone.utc)
+        return delta.total_seconds() / 3600.0
+    except Exception:
+        return None
+
+
+def scanner_filters_pass(market: dict, pm_cfg: dict, yes_prob: float) -> tuple[bool, str | None, dict]:
+    """
+    Apply Phase B scanner filters. Returns (ok, rejection_reason, context).
+    Context carries fields the opportunity record will record (depth, hours).
+    """
+    ctx: dict = {"depth_usd": 0.0, "hours_to_resolution": None}
+
+    # Edge: skip near-certainty markets where there's no meaningful room
+    if yes_prob < 0.05 or yes_prob > 0.95:
+        return False, "near_certainty", ctx
+
+    # Volume floor
+    min_volume = float(pm_cfg.get("min_volume_usd", 50000))
+    volume = float(market.get("volume", 0) or 0)
+    if volume < min_volume:
+        return False, "volume", ctx
+
+    # Time to resolution
+    hrs = hours_to_resolution(market)
+    ctx["hours_to_resolution"] = hrs
+    min_hrs = float(pm_cfg.get("min_hours_to_resolution", 4))
+    max_hrs = float(pm_cfg.get("max_hours_to_resolution", 168))
+    if hrs is None or hrs < min_hrs or hrs > max_hrs:
+        return False, "time", ctx
+
+    # Orderbook depth — one network call per candidate; do this last so
+    # earlier cheap rejections don't waste API calls.
+    token_id = ""
+    for token in market.get("tokens", []) or []:
+        if str(token.get("outcome", "")).upper() == "YES":
+            token_id = str(token.get("token_id", ""))
+            break
+    depth = fetch_orderbook_depth(token_id) if token_id else 0.0
+    ctx["depth_usd"] = depth
+    min_depth = float(pm_cfg.get("min_depth_usd", 500))
+    if depth < min_depth:
+        return False, "depth", ctx
+
+    return True, None, ctx
+
+
+def whale_concurrence_for_market(market: dict, side: str) -> bool:
+    """
+    Phase B signal: does any tracked whale currently hold `side` in this market?
+
+    Conservative implementation — we check the Redis-cached whale set and,
+    for each whale, query Polymarket's data API for recent positions. To
+    stay cheap we only check up to a handful of top whales and cache
+    the answer for 10 minutes per market.
+    """
+    whale_set = whale_tracker.get_whale_set(r)
+    if not whale_set:
+        return False
+
+    condition_id = market.get("conditionId") or market.get("condition_id")
+    if not condition_id:
+        return False
+
+    cache_key = f"polymarket:whale_concur:{condition_id}:{side}"
+    cached = r.get(cache_key)
+    if cached is not None:
+        return cached == "1"
+
+    # Limit to a small sample of whales per check to bound latency.
+    sample = list(whale_set)[:20]
+    concurrence = False
+    for address in sample:
+        try:
+            resp = requests.get(
+                "https://data-api.polymarket.com/positions",
+                params={"user": address, "limit": 50},
+                timeout=5,
+            )
+            if resp.status_code != 200:
+                continue
+            positions = resp.json() or []
+            for pos in positions:
+                pos_cond = pos.get("conditionId") or pos.get("condition_id")
+                pos_outcome = str(pos.get("outcome", "")).upper()
+                if pos_cond == condition_id and pos_outcome == side.upper():
+                    concurrence = True
+                    break
+            if concurrence:
+                break
+        except Exception as e:
+            logger.debug(f"whale position lookup failed for {address[:10]}: {e}")
+
+    r.setex(cache_key, 600, "1" if concurrence else "0")
+    return concurrence
 
 
 def parse_market_odds(market: dict) -> tuple[float, float] | None:
@@ -235,13 +409,15 @@ confidence: how confident you are in this estimate (0.0 = no idea, 1.0 = certain
 # ── Opportunity evaluation ────────────────────────────────────────────────────
 
 def evaluate_opportunity(market: dict, claude_analysis: dict, market_prob: float,
-                         pm_cfg: dict) -> dict | None:
+                         pm_cfg: dict, filter_ctx: dict | None = None) -> dict | None:
     """
     Return an opportunity dict if this market meets the entry criteria.
+    Uses fractional-Kelly sizing; hard-capped at max_per_market of portfolio.
     """
     min_edge = float(pm_cfg.get("min_edge_percent", 5.0)) / 100
     min_confidence = float(pm_cfg.get("min_confidence", 0.75))
     max_per_market_pct = float(str(pm_cfg.get("max_per_market", "3%")).replace("%", "")) / 100
+    kelly_cap = float(pm_cfg.get("kelly_cap", 0.25))
 
     claude_prob = claude_analysis["claude_prob"]
     confidence = claude_analysis["confidence"]
@@ -250,17 +426,37 @@ def evaluate_opportunity(market: dict, claude_analysis: dict, market_prob: float
     if edge < min_edge or confidence < min_confidence:
         return None
 
-    # Determine which side to bet
+    # Determine which side to bet and the price we'd be paying.
     if claude_prob > market_prob + min_edge:
         side = "YES"
-        bet_price = market_prob  # buy YES at current market price
+        bet_price = market_prob                     # buying YES
+        p_win = claude_prob
     else:
         side = "NO"
-        bet_price = 1.0 - market_prob
+        bet_price = 1.0 - market_prob               # buying NO
+        p_win = 1.0 - claude_prob
 
     portfolio_value = float(r.get("portfolio:estimated_value") or 10000)
-    amount_usd = portfolio_value * max_per_market_pct
 
+    # Kelly sizing, capped by both the quarter-Kelly fraction AND the
+    # per-market hard ceiling (max_per_market). A miscalibrated Claude
+    # estimate can produce a large f_star; the per-market cap is the
+    # backstop that keeps any single bet from dominating the book.
+    kelly_amount = kelly_size(p_win=p_win, market_price=bet_price,
+                              bankroll=portfolio_value, max_fraction=kelly_cap)
+    per_market_cap = portfolio_value * max_per_market_pct
+    amount_usd = min(kelly_amount, per_market_cap)
+    if amount_usd <= 0:
+        return None
+
+    f_star_effective = amount_usd / portfolio_value if portfolio_value > 0 else 0.0
+    kelly_fraction.observe(f_star_effective)
+
+    concurrence = whale_concurrence_for_market(market, side)
+    if concurrence:
+        whale_concurrences.inc()
+
+    filter_ctx = filter_ctx or {}
     return {
         "market_id": market.get("conditionId", ""),
         "question": market.get("question", ""),
@@ -270,7 +466,13 @@ def evaluate_opportunity(market: dict, claude_analysis: dict, market_prob: float
         "claude_prob": round(claude_prob, 4),
         "market_prob": round(market_prob, 4),
         "edge": round(edge, 4),
+        "expected_gap": round(claude_prob - market_prob, 4),
         "confidence": round(confidence, 4),
+        "kelly_fraction": round(f_star_effective, 4),
+        "whale_concurrence": bool(concurrence),
+        "depth_usd": round(float(filter_ctx.get("depth_usd", 0.0)), 2),
+        "hours_to_resolution": round(filter_ctx.get("hours_to_resolution") or 0.0, 2),
+        "claude_model": "claude-sonnet-4-6",
         "reasoning": claude_analysis.get("reasoning", ""),
         "resolution_date": market.get("endDate", ""),
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -280,30 +482,43 @@ def evaluate_opportunity(market: dict, claude_analysis: dict, market_prob: float
 
 def publish_opportunity(opp: dict):
     """Write opportunity to Redis and SQLite."""
+    # Hard guard: Phase B remains simulation-only. This function must never
+    # be reachable from a live-order code path. Until a separate plan
+    # explicitly enables live, all rows are marked simulation=1 regardless
+    # of SIMULATION_MODE — see Phases A–C legal guardrails.
+    simulation_flag = 1
+
     # Redis — for email digest and monitoring
     r.lpush("signals:polymarket:opportunities", json.dumps(opp))
     r.ltrim("signals:polymarket:opportunities", 0, 49)  # keep last 50
     r.setex(f"signals:polymarket:market:{opp['market_id']}", 86400 * 7, json.dumps(opp))
 
-    # SQLite
+    # SQLite — includes Phase B columns (expected_gap, kelly_fraction,
+    # whale_concurrence, claude_model, depth_usd, hours_to_resolution)
     conn = sqlite3.connect(DB_PATH)
     conn.execute("""
         INSERT INTO positions
             (market_id, question, side, amount_usd, entry_price, claude_prob,
-             market_prob, opened_at, resolution_date, simulation)
-        VALUES (?,?,?,?,?,?,?,?,?,?)
+             market_prob, opened_at, resolution_date, simulation,
+             expected_gap, kelly_fraction, whale_concurrence,
+             claude_model, depth_usd, hours_to_resolution)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, (
         opp["market_id"], opp["question"], opp["side"], opp["amount_usd"],
         opp["entry_price"], opp["claude_prob"], opp["market_prob"],
-        opp["timestamp"], opp.get("resolution_date", ""), 1 if SIMULATION_MODE else 0,
+        opp["timestamp"], opp.get("resolution_date", ""), simulation_flag,
+        opp.get("expected_gap"), opp.get("kelly_fraction"),
+        1 if opp.get("whale_concurrence") else 0,
+        opp.get("claude_model", "claude-sonnet-4-6"),
+        opp.get("depth_usd"), opp.get("hours_to_resolution"),
     ))
     conn.commit()
     conn.close()
 
-    mode = "SIMULATION" if SIMULATION_MODE else "LIVE"
     logger.info(
-        f"[{mode}] Opportunity: {opp['side']} on '{opp['question'][:60]}...' "
-        f"edge={opp['edge']:.1%}, confidence={opp['confidence']:.1%}"
+        f"[SIMULATION] Opportunity: {opp['side']} on '{opp['question'][:60]}...' "
+        f"edge={opp['edge']:.1%}, kelly={opp.get('kelly_fraction', 0):.3f}, "
+        f"confidence={opp['confidence']:.1%}, whale={opp.get('whale_concurrence', False)}"
     )
     opportunities.inc()
 
@@ -363,21 +578,27 @@ def run_polymarket_cycle():
     for market in markets[:30]:  # Limit to 30 per cycle to control Claude API costs
         odds = parse_market_odds(market)
         if odds is None:
+            rejects.labels(reason="unparseable_odds").inc()
             continue
         yes_prob, _ = odds
 
-        # Skip near-certainty markets (not much edge possible)
-        if yes_prob < 0.05 or yes_prob > 0.95:
+        # Phase B filters: depth, time-to-resolution, volume, near-certainty
+        ok, reason, filter_ctx = scanner_filters_pass(market, pm_cfg, yes_prob)
+        if not ok:
+            rejects.labels(reason=reason or "unknown").inc()
             continue
 
         analysis = analyze_market_with_claude(market, yes_prob)
         if analysis is None:
+            rejects.labels(reason="claude_error").inc()
             continue
 
-        opp = evaluate_opportunity(market, analysis, yes_prob, pm_cfg)
+        opp = evaluate_opportunity(market, analysis, yes_prob, pm_cfg, filter_ctx)
         if opp:
             publish_opportunity(opp)
             opps_found += 1
+        else:
+            rejects.labels(reason="edge_or_confidence").inc()
 
         time.sleep(1)  # Rate limit Claude API calls
 
@@ -436,6 +657,31 @@ def whale_refresh_worker(stop_event: threading.Event):
             slept += 60
 
 
+def exit_monitor_worker(stop_event: threading.Event):
+    """
+    Background loop that evaluates exit triggers on open simulated positions
+    every 5 minutes. Noop when there are no open positions.
+    """
+    metrics = {
+        "target_hit":   exits.labels(reason="target_hit"),
+        "volume_exit":  exits.labels(reason="volume_exit"),
+        "stale_thesis": exits.labels(reason="stale_thesis"),
+    }
+    while not stop_event.is_set():
+        try:
+            pm_cfg = load_pm_config()
+            exit_cfg = (pm_cfg.get("exit") or {})
+            exit_monitor.evaluate_exits(exit_cfg, r, metrics=metrics)
+        except Exception as e:
+            logger.error(f"exit monitor cycle error: {e}", exc_info=True)
+
+        # Sleep 300s in 60s slices so stop_event is responsive.
+        for _ in range(5):
+            if stop_event.is_set():
+                break
+            time.sleep(60)
+
+
 if __name__ == "__main__":
     logger.info(f"Polymarket Service started (simulation={SIMULATION_MODE})")
 
@@ -465,6 +711,17 @@ if __name__ == "__main__":
     )
     whale_thread.start()
     logger.info("whale refresh worker started")
+
+    # Phase B: exit monitor thread — polls open simulated positions every
+    # 5 minutes and closes them on target / volume / stale triggers.
+    exit_thread = threading.Thread(
+        target=exit_monitor_worker,
+        args=(stop_event,),
+        name="exit-monitor",
+        daemon=True,
+    )
+    exit_thread.start()
+    logger.info("exit monitor worker started")
 
     time.sleep(30)
 

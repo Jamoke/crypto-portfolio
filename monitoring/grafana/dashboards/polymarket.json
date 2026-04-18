@@ -135,13 +135,112 @@
         "datasource": { "type": "prometheus", "uid": "prometheus" } }]
     },
 
-    { "type": "row", "id": 900, "title": "Whale roster (top 50)", "gridPos": { "x": 0, "y": 18, "w": 24, "h": 1 }, "collapsed": false },
+    { "type": "row", "id": 300, "title": "Scanner Rejections (Phase B)", "gridPos": { "x": 0, "y": 18, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 301, "type": "piechart", "title": "Reject reasons (24h)",
+      "description": "Why candidate markets were rejected before reaching Claude. Heavy 'depth' or 'volume' skew means tunables in strategy_config.yaml may be too strict.",
+      "gridPos": { "x": 0, "y": 19, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }, "pieType": "donut" },
+      "targets": [{
+        "expr": "sum by (reason) (increase(polymarket_rejects_total[24h]))",
+        "legendFormat": "{{reason}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "id": 302, "type": "timeseries", "title": "Reject rate over time",
+      "gridPos": { "x": 12, "y": 19, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10, "stacking": { "mode": "normal" } } } },
+      "targets": [{
+        "expr": "sum by (reason) (rate(polymarket_rejects_total[1h]))",
+        "legendFormat": "{{reason}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+
+    { "type": "row", "id": 400, "title": "Sizing & Whale Concurrence (Phase B)", "gridPos": { "x": 0, "y": 27, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 401, "type": "bargauge", "title": "Kelly fraction distribution",
+      "description": "Histogram of f* values at opportunity-creation time. Quarter-Kelly cap is 0.25 — any bucket at 0.25 represents capped positions.",
+      "gridPos": { "x": 0, "y": 28, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "none", "color": { "mode": "continuous-GrYlRd" } } },
+      "options": { "displayMode": "gradient", "orientation": "horizontal" },
+      "targets": [{
+        "expr": "sum by (le) (increase(polymarket_kelly_fraction_bucket[7d]))",
+        "format": "heatmap",
+        "legendFormat": "{{le}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "id": 402, "type": "stat", "title": "Whale concurrences (7d)",
+      "description": "Opportunities where at least one tracked whale holds the same side. Currently a feature flag, not an auto-trade trigger.",
+      "gridPos": { "x": 12, "y": 28, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
+      "targets": [{ "expr": "increase(polymarket_whale_concurrences_total[7d])",
+        "datasource": { "type": "prometheus", "uid": "prometheus" } }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 403, "type": "stat", "title": "Whale concurrence rate",
+      "description": "Share of opportunities over the last 7d that had whale agreement.",
+      "gridPos": { "x": 18, "y": 28, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "percentunit",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "blue", "value": null },
+          { "color": "green", "value": 0.1 }
+        ] } } },
+      "targets": [{
+        "expr": "increase(polymarket_whale_concurrences_total[7d]) / clamp_min(increase(polymarket_opportunities_total[7d]), 1)",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    { "type": "row", "id": 500, "title": "Exit Monitor (Phase B)", "gridPos": { "x": 0, "y": 36, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 501, "type": "piechart", "title": "Exit reasons (30d)",
+      "description": "How simulated positions closed. Heavy 'stale_thesis' means Claude's probability estimates are not moving the market — a Phase C calibration signal.",
+      "gridPos": { "x": 0, "y": 37, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }, "pieType": "donut" },
+      "targets": [{
+        "expr": "sum by (reason) (increase(polymarket_exits_total[30d]))",
+        "legendFormat": "{{reason}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "id": 502, "type": "timeseries", "title": "Exits by reason over time",
+      "gridPos": { "x": 12, "y": 37, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [{
+        "expr": "sum by (reason) (increase(polymarket_exits_total[1d]))",
+        "legendFormat": "{{reason}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+
+    { "type": "row", "id": 900, "title": "Whale roster & open positions (data inspection)", "gridPos": { "x": 0, "y": 45, "w": 24, "h": 1 }, "collapsed": false },
     {
       "id": 901, "type": "text", "title": "How to view the current whale roster",
-      "gridPos": { "x": 0, "y": 19, "w": 24, "h": 4 },
+      "gridPos": { "x": 0, "y": 46, "w": 12, "h": 4 },
       "options": {
         "mode": "markdown",
         "content": "The ranked roster of profitable wallets is stored in Redis and SQLite, not Prometheus (addresses + PnL values don't fit the metric model). To inspect the current set:\n\n```bash\ndocker compose exec redis redis-cli GET signals:polymarket:whales:summary | jq '.top[0:20]'\ndocker compose exec polymarket sqlite3 /app/data/polymarket.db \\\n    'SELECT address, trades, win_rate, total_pnl FROM whales ORDER BY total_pnl DESC LIMIT 20'\n```\n\nThe set refreshes every 24h (configurable via `prediction_markets.whales.refresh_hours`)."
+      }
+    },
+    {
+      "id": 902, "type": "text", "title": "How to view open simulated positions",
+      "gridPos": { "x": 12, "y": 46, "w": 12, "h": 4 },
+      "options": {
+        "mode": "markdown",
+        "content": "Positions carry Phase B metadata (expected_gap, kelly_fraction, whale_concurrence, claude_model) that Phase C's calibration harness consumes. Inspect with:\n\n```bash\ndocker compose exec polymarket sqlite3 /app/data/polymarket.db \\\n    'SELECT id, market_id, side, entry_price, amount_usd, kelly_fraction, whale_concurrence, opened_at \\\n     FROM positions WHERE closed_at IS NULL AND simulation=1 ORDER BY opened_at DESC'\n```\n\nAll rows are `simulation=1` — enforced as a literal in `publish_opportunity()` (see `tests/test_no_live_orders.py`)."
       }
     }
   ],
