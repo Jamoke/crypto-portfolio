@@ -34,7 +34,11 @@ logger = logging.getLogger(__name__)
 SUBGRAPH_URL = os.environ.get(
     "POLYMARKET_SUBGRAPH_URL",
     # Public Polymarket orderbook subgraph on Goldsky — override via env if it rotates.
-    "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.14/gn",
+    # Version 0.0.1 is the current public deployment of orderbook-subgraph (as of
+    # 2026-04-18). Earlier code had 0.0.14 hardcoded, which conflated this with
+    # pnl-subgraph/0.0.14 and returned 404 on POST. Validated by querying
+    # orderFilledEvents against this URL — schema matches our query exactly.
+    "https://api.goldsky.com/api/public/project_cl6mb8i9h0003e201j6li0diw/subgraphs/orderbook-subgraph/0.0.1/gn",
 )
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
 DB_PATH = Path("/app/data/polymarket.db")
