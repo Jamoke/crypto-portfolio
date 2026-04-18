@@ -21,6 +21,7 @@ SERVICE_FILES = [
     SERVICE_DIR / "whale_tracker.py",
     SERVICE_DIR / "exit_monitor.py",
     SERVICE_DIR / "sizing.py",
+    SERVICE_DIR / "calibrate.py",
 ]
 
 # Anything in this list is a known-banned dependency or endpoint that would

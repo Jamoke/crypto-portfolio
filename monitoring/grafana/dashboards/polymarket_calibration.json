@@ -1,0 +1,58 @@
+{
+  "title": "Polymarket — Calibration (Phase C)",
+  "uid": "polymarket-calibration",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "",
+  "time": { "from": "now-90d", "to": "now" },
+  "description": "Historical view of Claude's probability calibration on resolved Polymarket markets. The interactive analysis lives in scripts/calibration_analysis.ipynb — this dashboard is a summary surface for ops triage.",
+  "panels": [
+
+    { "type": "row", "id": 100, "title": "Overview", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 101, "type": "text", "title": "What this dashboard is (and isn't)",
+      "gridPos": { "x": 0, "y": 1, "w": 24, "h": 6 },
+      "options": {
+        "mode": "markdown",
+        "content": "The calibration harness (Phase C) scores Claude's probability estimates against **resolved** Polymarket markets. It answers the only question that matters before we ever go live: **is there actually edge here?**\n\n## How to run\n\n```bash\n# Dry run — prints cost estimate, doesn't call Claude\nbash scripts/calibrate_polymarket.sh --dry-run --limit 5\n\n# Small validation run\nbash scripts/calibrate_polymarket.sh --limit 25\n\n# Full run (180d, 500 markets)\nbash scripts/calibrate_polymarket.sh --window-days 180 --limit 500\n```\n\nResults write to `services/polymarket/data/calibration.db`. Open `scripts/calibration_analysis.ipynb` to compute Brier scores, reliability diagrams, and edge-conditional accuracy.\n\n## Decision criteria\n\n| Outcome | Criteria |\n|---|---|\n| **Green** | Claude Brier < market Brier by ≥ 0.01 on N ≥ 200; \\|edge\\| ≥ 5% accuracy ≥ 58%; reliability diagonal within 10pt/decile |\n| **Yellow** | One criterion fails, others pass. Iterate prompt / threshold. |\n| **Red** | Claude Brier ≥ market Brier, OR edge accuracy ≤ 52%. Kill this prompt/model. |\n\nThe go/no-go on ever flipping `prediction_markets.enabled: true` is gated on a **green** verdict here — not on Phase A or B completion."
+      }
+    },
+
+    { "type": "row", "id": 200, "title": "Uncontaminated evaluation window", "gridPos": { "x": 0, "y": 7, "w": 24, "h": 1 }, "collapsed": false },
+    {
+      "id": 201, "type": "text", "title": "Training-data cutoff — why this matters",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 6 },
+      "options": {
+        "mode": "markdown",
+        "content": "Claude may have memorized the outcome of any market that resolved before its training cutoff. Running calibration on those markets would give an artificially high Brier score — the model isn't reasoning, it's remembering.\n\nThe harness enforces a hard filter: **only markets with `resolution_date > cutoff + buffer_days`** (from `config/claude_cutoffs.yaml`) are considered. Today that's `claude-sonnet-4-6` = 2025-01-31 + 30d buffer.\n\n**Second constraint**: the prompt is reconstructed to show only data available at `T = resolution_date - lag_hours` (default 24h pre-close). No final price, no post-resolution news. See `calibrate.py::_build_calibration_prompt`.\n\n## Inspecting the dataset\n\n```bash\ndocker compose exec polymarket sqlite3 /app/data/calibration.db \\\n  \"SELECT run_id, COUNT(*), MIN(resolution_date), MAX(resolution_date) FROM calibration_runs GROUP BY run_id\"\n\ndocker compose exec polymarket sqlite3 /app/data/calibration.db \\\n  \"SELECT claude_model, AVG((claude_prob - resolution)*(claude_prob - resolution)) AS claude_brier, \\\n          AVG((market_prob_at_T - resolution)*(market_prob_at_T - resolution)) AS market_brier, COUNT(*) \\\n   FROM calibration_runs GROUP BY claude_model\"\n```\n\nAny row in `calibration_runs` with `resolution_date <= cutoff` is a bug — file it and re-run. The harness should reject those at fetch time."
+      }
+    },
+
+    { "type": "row", "id": 300, "title": "Runs (if cron-scheduled)", "gridPos": { "x": 0, "y": 14, "w": 24, "h": 1 }, "collapsed": false },
+    {
+      "id": 301, "type": "text", "title": "Automation note",
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 4 },
+      "options": {
+        "mode": "markdown",
+        "content": "Phase C does not currently schedule itself — calibration is a manual decision-support tool. If you want rolling calibration (e.g. weekly refresh), wire it via:\n\n```bash\n# Weekly, Sunday 06:00 UTC\n0 6 * * 0 cd /path/to/crypto-portfolio && bash scripts/calibrate_polymarket.sh --limit 200 --window-days 30 >> logs/calibration.log 2>&1\n```\n\nThen add a Prometheus exporter that emits `polymarket_calibration_claude_brier` and `polymarket_calibration_market_brier` gauges, and add trend panels here. Until that's wired, the notebook remains the source of truth."
+      }
+    },
+
+    { "type": "row", "id": 400, "title": "Commit the decision", "gridPos": { "x": 0, "y": 19, "w": 24, "h": 1 }, "collapsed": false },
+    {
+      "id": 401, "type": "text", "title": "What to write up",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 5 },
+      "options": {
+        "mode": "markdown",
+        "content": "After each full calibration run, drop a short write-up in `docs/polymarket_calibration_YYYY-MM-DD.md` with:\n\n1. **N and date range** of the run (e.g. 450 markets resolving 2025-03-01 → 2025-09-01)\n2. **Brier delta** (market - claude) with 95% CI\n3. **Edge-conditional accuracy** at \\|edge\\| ≥ 5%\n4. **Verdict** (green / yellow / red) per the criteria above\n5. **Reliability diagram screenshot** from the notebook\n6. **Decision** — what the next change is (prompt tweak, threshold shift, or kill)\n\nThis is a research log, not release notes. Keep it honest; yellow is the most likely outcome on the first run and that's fine."
+      }
+    }
+  ],
+  "templating": {
+    "list": [{
+      "name": "DS_PROMETHEUS", "type": "datasource", "pluginId": "prometheus",
+      "hide": 2, "current": { "text": "Prometheus", "value": "prometheus" }
+    }]
+  }
+}

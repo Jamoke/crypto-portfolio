@@ -1,0 +1,42 @@
+# ============================================================
+#  Claude training-data cutoff dates per model
+#
+#  Phase C (Polymarket calibration harness) uses these to reject
+#  any market whose resolution_date <= cutoff, because Claude may
+#  have memorized the outcome and would score artificially well.
+#
+#  Dates are conservative — if Anthropic publishes a precise
+#  cutoff, replace with that. Otherwise we use the month boundary
+#  given in system metadata and ADD a buffer_days margin.
+#
+#  Sources:
+#    - claude-sonnet-4-6 / claude-opus-4-*: system-reminder metadata
+#    - claude-sonnet-3-7 / older: public release notes
+# ============================================================
+
+# Extra days added on top of the published cutoff to absorb
+# any slack in the public date (e.g. staged crawls that end
+# later than advertised).
+buffer_days: 30
+
+models:
+  claude-sonnet-4-6:
+    cutoff: "2025-01-31"
+    notes: "Per system metadata 'Assistant knowledge cutoff is January 2025'."
+
+  claude-opus-4-6:
+    cutoff: "2025-01-31"
+    notes: "Same family cutoff as sonnet-4-6."
+
+  claude-haiku-4-5:
+    cutoff: "2025-01-31"
+    notes: "Same family cutoff."
+
+  # Historical fallbacks — not used by the harness unless explicitly
+  # passed with --model. Listed for reference.
+  claude-sonnet-3-7:
+    cutoff: "2024-10-31"
+    notes: "October 2024 cutoff (public)."
+  claude-sonnet-3-5:
+    cutoff: "2024-04-30"
+    notes: "April 2024 cutoff (public)."
