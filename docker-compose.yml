@@ -390,10 +390,15 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - GF_SERVER_ROOT_URL=http://localhost:3000
       - GF_USERS_ALLOW_SIGN_UP=false
+      # SQLite datasource for polymarket.db (whales + positions) and
+      # calibration.db. Addresses + row-level data don't fit Prometheus's
+      # metric model, so Grafana reads the SQLite files directly.
+      - GF_INSTALL_PLUGINS=frser-sqlite-datasource
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning   # auto-configure datasource + dashboards
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards   # dashboard JSON files
+      - polymarket_db:/var/lib/grafana/sqlite/polymarket:ro           # read-only view of polymarket SQLite DBs
     ports:
       - "3000:3000"
     networks:

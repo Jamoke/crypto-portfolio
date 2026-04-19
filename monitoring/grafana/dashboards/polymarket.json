@@ -226,21 +226,141 @@
       }]
     },
 
-    { "type": "row", "id": 900, "title": "Whale roster & open positions (data inspection)", "gridPos": { "x": 0, "y": 45, "w": 24, "h": 1 }, "collapsed": false },
+    { "type": "row", "id": 900, "title": "Whale roster & positions (live from SQLite)", "gridPos": { "x": 0, "y": 45, "w": 24, "h": 1 }, "collapsed": false },
+
     {
-      "id": 901, "type": "text", "title": "How to view the current whale roster",
-      "gridPos": { "x": 0, "y": 46, "w": 12, "h": 4 },
-      "options": {
-        "mode": "markdown",
-        "content": "The ranked roster of profitable wallets is stored in Redis and SQLite, not Prometheus (addresses + PnL values don't fit the metric model — Prometheus labels would cardinality-explode with wallet addresses). To inspect the current set:\n\n```bash\n# Top 20 from Redis (pipe through polymarket where jq is installed)\ndocker compose exec redis redis-cli GET signals:polymarket:whales:summary \\\n  | docker compose exec -T polymarket jq '.top[0:20]'\n\n# Same view from SQLite\ndocker compose exec polymarket sqlite3 /app/data/polymarket.db \\\n    'SELECT address, trades, win_rate, total_pnl FROM whales ORDER BY total_pnl DESC LIMIT 20'\n```\n\nThe set refreshes every 24h (configurable via `prediction_markets.whales.refresh_hours`). If you want a live roster panel on this dashboard, install Grafana's Redis or SQLite datasource plugin — see the text block below."
-      }
+      "id": 901, "type": "table", "title": "Top whales by PnL",
+      "description": "Live roster from polymarket.db::whales. Refreshed every 24h by the whale tracker. Addresses are Polygon wallets; click through to polygonscan for on-chain history.",
+      "gridPos": { "x": 0, "y": 46, "w": 12, "h": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "left", "cellOptions": { "type": "auto" } }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "win_rate" },
+            "properties": [{ "id": "unit", "value": "percentunit" }] },
+          { "matcher": { "id": "byName", "options": "total_pnl" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }] },
+          { "matcher": { "id": "byName", "options": "avg_hold_hours" },
+            "properties": [{ "id": "unit", "value": "h" }] }
+        ]
+      },
+      "options": { "showHeader": true, "footer": { "show": true, "reducer": ["count"], "fields": ["address"] } },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT address, trades, ROUND(win_rate, 3) AS win_rate, ROUND(total_pnl, 2) AS total_pnl, ROUND(avg_hold_hours, 1) AS avg_hold_hours, last_trade_at FROM whales ORDER BY total_pnl DESC LIMIT 20",
+        "queryText": "SELECT address, trades, ROUND(win_rate, 3) AS win_rate, ROUND(total_pnl, 2) AS total_pnl, ROUND(avg_hold_hours, 1) AS avg_hold_hours, last_trade_at FROM whales ORDER BY total_pnl DESC LIMIT 20",
+        "timeColumns": []
+      }]
     },
     {
-      "id": 902, "type": "text", "title": "How to view open simulated positions",
-      "gridPos": { "x": 12, "y": 46, "w": 12, "h": 4 },
+      "id": 902, "type": "table", "title": "Open simulated positions",
+      "description": "Live from polymarket.db::positions where closed_at IS NULL. All rows have simulation=1 — enforced as a literal in publish_opportunity() (see tests/test_no_live_orders.py).",
+      "gridPos": { "x": 12, "y": 46, "w": 12, "h": 10 },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "entry_price" },
+            "properties": [{ "id": "unit", "value": "percentunit" }] },
+          { "matcher": { "id": "byName", "options": "amount_usd" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }] },
+          { "matcher": { "id": "byName", "options": "kelly_fraction" },
+            "properties": [{ "id": "unit", "value": "percentunit" }] }
+        ]
+      },
+      "options": { "showHeader": true, "footer": { "show": true, "reducer": ["count"], "fields": ["id"] } },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT id, SUBSTR(market_id, 1, 16) AS market_id, side, ROUND(entry_price, 3) AS entry_price, ROUND(amount_usd, 2) AS amount_usd, ROUND(kelly_fraction, 4) AS kelly_fraction, whale_concurrence, opened_at FROM positions WHERE closed_at IS NULL AND simulation=1 ORDER BY opened_at DESC LIMIT 50",
+        "queryText": "SELECT id, SUBSTR(market_id, 1, 16) AS market_id, side, ROUND(entry_price, 3) AS entry_price, ROUND(amount_usd, 2) AS amount_usd, ROUND(kelly_fraction, 4) AS kelly_fraction, whale_concurrence, opened_at FROM positions WHERE closed_at IS NULL AND simulation=1 ORDER BY opened_at DESC LIMIT 50",
+        "timeColumns": []
+      }]
+    },
+
+    {
+      "id": 903, "type": "table", "title": "Closed positions — last 30 days",
+      "description": "Realized outcomes for simulated positions. exit_reason pairs with the Prometheus 'Exit reasons' pie chart above, but with per-position PnL that Prometheus can't store.",
+      "gridPos": { "x": 0, "y": 56, "w": 18, "h": 10 },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "entry_price" },
+            "properties": [{ "id": "unit", "value": "percentunit" }] },
+          { "matcher": { "id": "byName", "options": "exit_price" },
+            "properties": [{ "id": "unit", "value": "percentunit" }] },
+          { "matcher": { "id": "byName", "options": "amount_usd" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }] },
+          { "matcher": { "id": "byName", "options": "pnl_usd" },
+            "properties": [
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              { "id": "color", "value": { "mode": "continuous-RdYlGr" } }
+            ] }
+        ]
+      },
+      "options": { "showHeader": true, "footer": { "show": true, "reducer": ["sum"], "fields": ["pnl_usd"] } },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT SUBSTR(market_id, 1, 16) AS market_id, side, ROUND(entry_price, 3) AS entry_price, ROUND(exit_price, 3) AS exit_price, ROUND(amount_usd, 2) AS amount_usd, ROUND(pnl_usd, 2) AS pnl_usd, exit_reason, opened_at, closed_at FROM positions WHERE closed_at IS NOT NULL AND simulation=1 AND closed_at >= datetime('now', '-30 days') ORDER BY closed_at DESC LIMIT 100",
+        "queryText": "SELECT SUBSTR(market_id, 1, 16) AS market_id, side, ROUND(entry_price, 3) AS entry_price, ROUND(exit_price, 3) AS exit_price, ROUND(amount_usd, 2) AS amount_usd, ROUND(pnl_usd, 2) AS pnl_usd, exit_reason, opened_at, closed_at FROM positions WHERE closed_at IS NOT NULL AND simulation=1 AND closed_at >= datetime('now', '-30 days') ORDER BY closed_at DESC LIMIT 100",
+        "timeColumns": []
+      }]
+    },
+    {
+      "id": 904, "type": "stat", "title": "Simulated PnL (30d)",
+      "description": "Sum of pnl_usd across all closed simulated positions in the last 30 days. Sanity-check against the exit-reason mix — heavy stale_thesis with positive PnL is suspicious.",
+      "gridPos": { "x": 18, "y": 56, "w": 6, "h": 5 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": null },
+          { "color": "yellow", "value": 0 },
+          { "color": "green", "value": 0.01 }
+        ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "pnl_30d" }, "colorMode": "background" },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT COALESCE(SUM(pnl_usd), 0) AS pnl_30d FROM positions WHERE closed_at IS NOT NULL AND simulation=1 AND closed_at >= datetime('now', '-30 days')",
+        "queryText": "SELECT COALESCE(SUM(pnl_usd), 0) AS pnl_30d FROM positions WHERE closed_at IS NOT NULL AND simulation=1 AND closed_at >= datetime('now', '-30 days')",
+        "timeColumns": []
+      }]
+    },
+    {
+      "id": 905, "type": "stat", "title": "Win rate (30d, closed)",
+      "description": "Share of closed simulated positions with pnl_usd > 0 in the last 30 days.",
+      "gridPos": { "x": 18, "y": 61, "w": 6, "h": 5 },
+      "fieldConfig": { "defaults": { "unit": "percentunit",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": null },
+          { "color": "yellow", "value": 0.5 },
+          { "color": "green", "value": 0.55 }
+        ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "win_rate" }, "colorMode": "background" },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT CAST(SUM(CASE WHEN pnl_usd > 0 THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*), 0) AS win_rate FROM positions WHERE closed_at IS NOT NULL AND simulation=1 AND closed_at >= datetime('now', '-30 days')",
+        "queryText": "SELECT CAST(SUM(CASE WHEN pnl_usd > 0 THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*), 0) AS win_rate FROM positions WHERE closed_at IS NOT NULL AND simulation=1 AND closed_at >= datetime('now', '-30 days')",
+        "timeColumns": []
+      }]
+    },
+
+    {
+      "id": 906, "type": "text", "title": "CLI inspection (if Grafana is unavailable)",
+      "gridPos": { "x": 0, "y": 66, "w": 24, "h": 4 },
       "options": {
         "mode": "markdown",
-        "content": "Positions carry Phase B metadata (expected_gap, kelly_fraction, whale_concurrence, claude_model) that Phase C's calibration harness consumes. Inspect with:\n\n```bash\ndocker compose exec polymarket sqlite3 /app/data/polymarket.db \\\n    'SELECT id, market_id, side, entry_price, amount_usd, kelly_fraction, whale_concurrence, opened_at \\\n     FROM positions WHERE closed_at IS NULL AND simulation=1 ORDER BY opened_at DESC'\n```\n\nAll rows are `simulation=1` — enforced as a literal in `publish_opportunity()` (see `tests/test_no_live_orders.py`)."
+        "content": "Same data, via the shell on the Pi:\n\n```bash\n# Top 20 from Redis (pipe through polymarket where jq is installed)\ndocker compose exec redis redis-cli GET signals:polymarket:whales:summary \\\n  | docker compose exec -T polymarket jq '.top[0:20]'\n\n# Open positions\ndocker compose exec polymarket sqlite3 /app/data/polymarket.db \\\n    'SELECT id, market_id, side, entry_price, amount_usd, kelly_fraction, whale_concurrence, opened_at FROM positions WHERE closed_at IS NULL AND simulation=1 ORDER BY opened_at DESC'\n```\n\nAll rows are `simulation=1` — enforced as a literal in `publish_opportunity()`."
       }
     }
   ],

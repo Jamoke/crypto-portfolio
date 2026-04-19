@@ -29,20 +29,190 @@
       }
     },
 
-    { "type": "row", "id": 300, "title": "Runs (if cron-scheduled)", "gridPos": { "x": 0, "y": 14, "w": 24, "h": 1 }, "collapsed": false },
+    { "type": "row", "id": 300, "title": "Live results from calibration.db", "gridPos": { "x": 0, "y": 14, "w": 24, "h": 1 }, "collapsed": false },
+
     {
-      "id": 301, "type": "text", "title": "Automation note",
-      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 4 },
+      "id": 310, "type": "stat", "title": "Total calibrated markets",
+      "description": "Row count in calibration_runs. At N < 200 the Brier comparison is not conclusive.",
+      "gridPos": { "x": 0, "y": 15, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "none",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": null },
+          { "color": "yellow", "value": 50 },
+          { "color": "green", "value": 200 }
+        ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "n" }, "colorMode": "background" },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-calibration-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT COUNT(*) AS n FROM calibration_runs",
+        "queryText": "SELECT COUNT(*) AS n FROM calibration_runs",
+        "timeColumns": []
+      }]
+    },
+    {
+      "id": 311, "type": "stat", "title": "Claude Brier (lower is better)",
+      "description": "Mean squared error of claude_prob vs. resolution across all rows. Market Brier is the benchmark — Claude must beat it by ≥ 0.01 for a green verdict.",
+      "gridPos": { "x": 6, "y": 15, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 4,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 0.2 },
+          { "color": "red", "value": 0.25 }
+        ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "claude_brier" }, "colorMode": "background" },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-calibration-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT AVG((claude_prob - resolution)*(claude_prob - resolution)) AS claude_brier FROM calibration_runs WHERE claude_prob IS NOT NULL AND resolution IS NOT NULL",
+        "queryText": "SELECT AVG((claude_prob - resolution)*(claude_prob - resolution)) AS claude_brier FROM calibration_runs WHERE claude_prob IS NOT NULL AND resolution IS NOT NULL",
+        "timeColumns": []
+      }]
+    },
+    {
+      "id": 312, "type": "stat", "title": "Market Brier (benchmark)",
+      "gridPos": { "x": 12, "y": 15, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 4,
+        "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "market_brier" }, "colorMode": "background" },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-calibration-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT AVG((market_prob_at_T - resolution)*(market_prob_at_T - resolution)) AS market_brier FROM calibration_runs WHERE market_prob_at_T IS NOT NULL AND resolution IS NOT NULL",
+        "queryText": "SELECT AVG((market_prob_at_T - resolution)*(market_prob_at_T - resolution)) AS market_brier FROM calibration_runs WHERE market_prob_at_T IS NOT NULL AND resolution IS NOT NULL",
+        "timeColumns": []
+      }]
+    },
+    {
+      "id": 313, "type": "stat", "title": "Brier delta (market − claude)",
+      "description": "Positive = Claude beats the market. Green threshold is +0.01 per decision criteria.",
+      "gridPos": { "x": 18, "y": 15, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 4,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "red", "value": null },
+          { "color": "yellow", "value": 0 },
+          { "color": "green", "value": 0.01 }
+        ] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "brier_delta" }, "colorMode": "background" },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-calibration-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT AVG((market_prob_at_T - resolution)*(market_prob_at_T - resolution)) - AVG((claude_prob - resolution)*(claude_prob - resolution)) AS brier_delta FROM calibration_runs WHERE claude_prob IS NOT NULL AND market_prob_at_T IS NOT NULL AND resolution IS NOT NULL",
+        "queryText": "SELECT AVG((market_prob_at_T - resolution)*(market_prob_at_T - resolution)) - AVG((claude_prob - resolution)*(claude_prob - resolution)) AS brier_delta FROM calibration_runs WHERE claude_prob IS NOT NULL AND market_prob_at_T IS NOT NULL AND resolution IS NOT NULL",
+        "timeColumns": []
+      }]
+    },
+
+    {
+      "id": 320, "type": "table", "title": "Per-model Brier breakdown",
+      "description": "Brier scores sliced by claude_model. If you run multiple models, this is where you compare them head-to-head.",
+      "gridPos": { "x": 0, "y": 19, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" }, "decimals": 4 },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "brier_delta" },
+            "properties": [{ "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+                           { "id": "color", "value": { "mode": "continuous-RdYlGr" } }] }
+        ]
+      },
+      "options": { "showHeader": true },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-calibration-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT claude_model, COUNT(*) AS n, ROUND(AVG((claude_prob - resolution)*(claude_prob - resolution)), 4) AS claude_brier, ROUND(AVG((market_prob_at_T - resolution)*(market_prob_at_T - resolution)), 4) AS market_brier, ROUND(AVG((market_prob_at_T - resolution)*(market_prob_at_T - resolution)) - AVG((claude_prob - resolution)*(claude_prob - resolution)), 4) AS brier_delta FROM calibration_runs WHERE claude_prob IS NOT NULL AND market_prob_at_T IS NOT NULL AND resolution IS NOT NULL GROUP BY claude_model ORDER BY n DESC",
+        "queryText": "SELECT claude_model, COUNT(*) AS n, ROUND(AVG((claude_prob - resolution)*(claude_prob - resolution)), 4) AS claude_brier, ROUND(AVG((market_prob_at_T - resolution)*(market_prob_at_T - resolution)), 4) AS market_brier, ROUND(AVG((market_prob_at_T - resolution)*(market_prob_at_T - resolution)) - AVG((claude_prob - resolution)*(claude_prob - resolution)), 4) AS brier_delta FROM calibration_runs WHERE claude_prob IS NOT NULL AND market_prob_at_T IS NOT NULL AND resolution IS NOT NULL GROUP BY claude_model ORDER BY n DESC",
+        "timeColumns": []
+      }]
+    },
+    {
+      "id": 321, "type": "table", "title": "Edge-conditional accuracy",
+      "description": "For rows where |claude_prob - market_prob_at_T| ≥ the bucket threshold, how often did Claude's side win? This is the metric that matters for the live strategy.",
+      "gridPos": { "x": 12, "y": 19, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" }, "decimals": 3 },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "accuracy" },
+            "properties": [{ "id": "unit", "value": "percentunit" },
+                           { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+                           { "id": "color", "value": { "mode": "continuous-RdYlGr" } }] }
+        ]
+      },
+      "options": { "showHeader": true },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-calibration-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "WITH bucketed AS (SELECT CASE WHEN ABS(claude_prob - market_prob_at_T) >= 0.10 THEN '>=10%' WHEN ABS(claude_prob - market_prob_at_T) >= 0.05 THEN '5-10%' WHEN ABS(claude_prob - market_prob_at_T) >= 0.02 THEN '2-5%' ELSE '<2%' END AS edge_bucket, CASE WHEN (claude_prob > market_prob_at_T AND resolution = 1) OR (claude_prob < market_prob_at_T AND resolution = 0) THEN 1 ELSE 0 END AS claude_wins FROM calibration_runs WHERE claude_prob IS NOT NULL AND market_prob_at_T IS NOT NULL AND resolution IS NOT NULL) SELECT edge_bucket, COUNT(*) AS n, ROUND(AVG(claude_wins), 3) AS accuracy FROM bucketed GROUP BY edge_bucket ORDER BY CASE edge_bucket WHEN '>=10%' THEN 1 WHEN '5-10%' THEN 2 WHEN '2-5%' THEN 3 ELSE 4 END",
+        "queryText": "WITH bucketed AS (SELECT CASE WHEN ABS(claude_prob - market_prob_at_T) >= 0.10 THEN '>=10%' WHEN ABS(claude_prob - market_prob_at_T) >= 0.05 THEN '5-10%' WHEN ABS(claude_prob - market_prob_at_T) >= 0.02 THEN '2-5%' ELSE '<2%' END AS edge_bucket, CASE WHEN (claude_prob > market_prob_at_T AND resolution = 1) OR (claude_prob < market_prob_at_T AND resolution = 0) THEN 1 ELSE 0 END AS claude_wins FROM calibration_runs WHERE claude_prob IS NOT NULL AND market_prob_at_T IS NOT NULL AND resolution IS NOT NULL) SELECT edge_bucket, COUNT(*) AS n, ROUND(AVG(claude_wins), 3) AS accuracy FROM bucketed GROUP BY edge_bucket ORDER BY CASE edge_bucket WHEN '>=10%' THEN 1 WHEN '5-10%' THEN 2 WHEN '2-5%' THEN 3 ELSE 4 END",
+        "timeColumns": []
+      }]
+    },
+
+    {
+      "id": 322, "type": "table", "title": "Reliability diagram (decile bins)",
+      "description": "For each predicted-probability bin, compare Claude's mean prediction to the realized frequency of resolution=1. Perfect calibration is a diagonal: bin midpoint ≈ realized.",
+      "gridPos": { "x": 0, "y": 27, "w": 24, "h": 9 },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" }, "decimals": 3 },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "realized_freq" },
+            "properties": [{ "id": "unit", "value": "percentunit" }] },
+          { "matcher": { "id": "byName", "options": "mean_pred" },
+            "properties": [{ "id": "unit", "value": "percentunit" }] },
+          { "matcher": { "id": "byName", "options": "diagonal_gap" },
+            "properties": [{ "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+                           { "id": "color", "value": { "mode": "continuous-RdYlGr" } }] }
+        ]
+      },
+      "options": { "showHeader": true },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-calibration-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT CAST(MIN(10, CAST(claude_prob * 10 AS INTEGER)) AS INTEGER) AS decile, COUNT(*) AS n, ROUND(AVG(claude_prob), 3) AS mean_pred, ROUND(AVG(resolution), 3) AS realized_freq, ROUND(AVG(resolution) - AVG(claude_prob), 3) AS diagonal_gap FROM calibration_runs WHERE claude_prob IS NOT NULL AND resolution IS NOT NULL GROUP BY decile ORDER BY decile",
+        "queryText": "SELECT CAST(MIN(10, CAST(claude_prob * 10 AS INTEGER)) AS INTEGER) AS decile, COUNT(*) AS n, ROUND(AVG(claude_prob), 3) AS mean_pred, ROUND(AVG(resolution), 3) AS realized_freq, ROUND(AVG(resolution) - AVG(claude_prob), 3) AS diagonal_gap FROM calibration_runs WHERE claude_prob IS NOT NULL AND resolution IS NOT NULL GROUP BY decile ORDER BY decile",
+        "timeColumns": []
+      }]
+    },
+
+    {
+      "id": 323, "type": "table", "title": "Recent calibration rows",
+      "description": "Most recent 50 market evaluations. Spot-check prompt quality and obvious misreads.",
+      "gridPos": { "x": 0, "y": 36, "w": 24, "h": 10 },
+      "fieldConfig": { "defaults": { "custom": { "align": "left" } } },
+      "options": { "showHeader": true },
+      "targets": [{
+        "refId": "A",
+        "datasource": { "type": "frser-sqlite-datasource", "uid": "polymarket-calibration-sqlite" },
+        "queryType": "table",
+        "rawQueryText": "SELECT resolution_date, SUBSTR(question, 1, 80) AS question, category, ROUND(claude_prob, 3) AS claude_prob, ROUND(market_prob_at_T, 3) AS market_prob_at_T, resolution, claude_model FROM calibration_runs ORDER BY resolution_date DESC LIMIT 50",
+        "queryText": "SELECT resolution_date, SUBSTR(question, 1, 80) AS question, category, ROUND(claude_prob, 3) AS claude_prob, ROUND(market_prob_at_T, 3) AS market_prob_at_T, resolution, claude_model FROM calibration_runs ORDER BY resolution_date DESC LIMIT 50",
+        "timeColumns": []
+      }]
+    },
+
+    { "type": "row", "id": 350, "title": "Automation note", "gridPos": { "x": 0, "y": 46, "w": 24, "h": 1 }, "collapsed": false },
+    {
+      "id": 351, "type": "text", "title": "Scheduling future runs",
+      "gridPos": { "x": 0, "y": 47, "w": 24, "h": 4 },
       "options": {
         "mode": "markdown",
-        "content": "Phase C does not currently schedule itself — calibration is a manual decision-support tool. If you want rolling calibration (e.g. weekly refresh), wire it via:\n\n```bash\n# Weekly, Sunday 06:00 UTC\n0 6 * * 0 cd /path/to/crypto-portfolio && bash scripts/calibrate_polymarket.sh --limit 200 --window-days 30 >> logs/calibration.log 2>&1\n```\n\nThen add a Prometheus exporter that emits `polymarket_calibration_claude_brier` and `polymarket_calibration_market_brier` gauges, and add trend panels here. Until that's wired, the notebook remains the source of truth."
+        "content": "Phase C is manual by design — each run costs Anthropic API calls and should be deliberate. To add a weekly rolling refresh:\n\n```bash\n# Weekly, Sunday 06:00 UTC\n0 6 * * 0 cd /path/to/crypto-portfolio && bash scripts/calibrate_polymarket.sh --limit 200 --window-days 30 >> logs/calibration.log 2>&1\n```\n\nThe panels above pull directly from `calibration.db`, so a new run shows up in Grafana without any additional plumbing."
       }
     },
 
-    { "type": "row", "id": 400, "title": "Commit the decision", "gridPos": { "x": 0, "y": 19, "w": 24, "h": 1 }, "collapsed": false },
+    { "type": "row", "id": 400, "title": "Commit the decision", "gridPos": { "x": 0, "y": 51, "w": 24, "h": 1 }, "collapsed": false },
     {
       "id": 401, "type": "text", "title": "What to write up",
-      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 5 },
+      "gridPos": { "x": 0, "y": 52, "w": 24, "h": 5 },
       "options": {
         "mode": "markdown",
         "content": "After each full calibration run, drop a short write-up in `docs/polymarket_calibration_YYYY-MM-DD.md` with:\n\n1. **N and date range** of the run (e.g. 450 markets resolving 2025-03-01 → 2025-09-01)\n2. **Brier delta** (market - claude) with 95% CI\n3. **Edge-conditional accuracy** at \\|edge\\| ≥ 5%\n4. **Verdict** (green / yellow / red) per the criteria above\n5. **Reliability diagram screenshot** from the notebook\n6. **Decision** — what the next change is (prompt tweak, threshold shift, or kill)\n\nThis is a research log, not release notes. Keep it honest; yellow is the most likely outcome on the first run and that's fine."
