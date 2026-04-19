@@ -232,7 +232,7 @@
       "gridPos": { "x": 0, "y": 46, "w": 12, "h": 4 },
       "options": {
         "mode": "markdown",
-        "content": "The ranked roster of profitable wallets is stored in Redis and SQLite, not Prometheus (addresses + PnL values don't fit the metric model). To inspect the current set:\n\n```bash\ndocker compose exec redis redis-cli GET signals:polymarket:whales:summary | jq '.top[0:20]'\ndocker compose exec polymarket sqlite3 /app/data/polymarket.db \\\n    'SELECT address, trades, win_rate, total_pnl FROM whales ORDER BY total_pnl DESC LIMIT 20'\n```\n\nThe set refreshes every 24h (configurable via `prediction_markets.whales.refresh_hours`)."
+        "content": "The ranked roster of profitable wallets is stored in Redis and SQLite, not Prometheus (addresses + PnL values don't fit the metric model — Prometheus labels would cardinality-explode with wallet addresses). To inspect the current set:\n\n```bash\n# Top 20 from Redis (pipe through polymarket where jq is installed)\ndocker compose exec redis redis-cli GET signals:polymarket:whales:summary \\\n  | docker compose exec -T polymarket jq '.top[0:20]'\n\n# Same view from SQLite\ndocker compose exec polymarket sqlite3 /app/data/polymarket.db \\\n    'SELECT address, trades, win_rate, total_pnl FROM whales ORDER BY total_pnl DESC LIMIT 20'\n```\n\nThe set refreshes every 24h (configurable via `prediction_markets.whales.refresh_hours`). If you want a live roster panel on this dashboard, install Grafana's Redis or SQLite datasource plugin — see the text block below."
       }
     },
     {
