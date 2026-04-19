@@ -59,6 +59,7 @@ CUTOFFS_PATH = Path(os.environ.get("CLAUDE_CUTOFFS",
                                    "/app/config/claude_cutoffs.yaml"))
 
 POLYMARKET_CLOB_BASE = "https://clob.polymarket.com"
+POLYMARKET_GAMMA_BASE = "https://gamma-api.polymarket.com"
 
 # Cost estimate: Claude Sonnet 4.6 is ~$3/Mtok input, ~$15/Mtok output
 # as of Jan 2025. Our prompts are ~400 tok in, ~200 tok out.
@@ -112,50 +113,117 @@ def load_cutoff(model: str, path: Path = CUTOFFS_PATH) -> datetime:
     return cutoff + timedelta(days=buffer_days)
 
 
-# ── CLOB fetch ────────────────────────────────────────────────────────────────
+# ── Market fetch (Gamma API) ──────────────────────────────────────────────────
+# We used to page the CLOB /markets?closed=true endpoint, but CLOB returns
+# markets oldest-first with no server-side sort, so reaching recent resolved
+# markets required walking ~100% of Polymarket history (100+ slow pages).
+#
+# Gamma (the Polymarket frontend API) supports order=endDate&ascending=false,
+# so one or two pages gets us to the rolling 180d/30d window directly.
+
+def _gamma_to_common(m: dict) -> dict | None:
+    """
+    Translate a Gamma market record into the shape the rest of this module
+    expects (token list with winner/outcome/price/token_id, plus end_date_iso
+    and condition_id). Returns None if the record is malformed.
+
+    Gamma stores outcomes/outcomePrices/clobTokenIds as JSON-encoded strings.
+    """
+    try:
+        outcomes = json.loads(m.get("outcomes") or "[]")
+        prices = json.loads(m.get("outcomePrices") or "[]")
+        token_ids = json.loads(m.get("clobTokenIds") or "[]")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not (len(outcomes) == len(prices) == len(token_ids) >= 2):
+        return None
+
+    tokens = []
+    for name, price, tid in zip(outcomes, prices, token_ids):
+        try:
+            p = float(price)
+        except (TypeError, ValueError):
+            p = 0.0
+        tokens.append({
+            "outcome": name,
+            "price": p,
+            "token_id": tid,
+            "winner": p >= 0.99,   # resolved markets have a winning token at price 1.0
+        })
+
+    return {
+        "condition_id": m.get("conditionId") or m.get("condition_id"),
+        "question": m.get("question") or m.get("title") or "",
+        "end_date_iso": m.get("endDate") or m.get("end_date_iso"),
+        "category": m.get("category") or (m.get("tags", [None]) or [None])[0],
+        "volume": float(m.get("volume", 0) or 0),
+        "tokens": tokens,
+    }
+
+
 def _fetch_resolved_markets(window_days: int, limit: int,
                             min_volume: float = 1000.0) -> list[dict]:
     """
-    Pull closed markets from the CLOB. The CLOB supports ?closed=true and
-    cursor pagination — we page until we hit `limit` or the window edge.
+    Pull resolved markets from the Gamma API, sorted by endDate desc so we
+    hit the rolling window immediately. Stops when we have `limit` matches
+    or walk past the window edge.
     """
     results: list[dict] = []
-    cursor = ""
+    offset = 0
+    page_size = 500
     cutoff_ts = time.time() - window_days * 86400
+    pages = 0
     while len(results) < limit:
-        params: dict[str, Any] = {"closed": "true", "limit": 500}
-        if cursor:
-            params["next_cursor"] = cursor
         try:
-            resp = requests.get(f"{POLYMARKET_CLOB_BASE}/markets",
-                                params=params, timeout=15)
+            resp = requests.get(
+                f"{POLYMARKET_GAMMA_BASE}/markets",
+                params={
+                    "closed": "true",
+                    "order": "endDate",
+                    "ascending": "false",
+                    "limit": page_size,
+                    "offset": offset,
+                },
+                timeout=15,
+            )
             resp.raise_for_status()
         except Exception as e:
-            logger.error(f"CLOB fetch failed: {e}")
+            logger.error(f"Gamma fetch failed at offset {offset}: {e}")
             break
-        payload = resp.json()
-        batch = payload.get("data") or []
-        if not batch:
+        batch = resp.json() or []
+        if not isinstance(batch, list) or not batch:
             break
+        pages += 1
+        accepted_this_page = 0
+        walked_past_window = False
         for m in batch:
-            # end_date_iso | endDate fallbacks; CLOB has shifted field names.
-            end_raw = m.get("end_date_iso") or m.get("endDate") or m.get("end_date")
-            if not end_raw:
+            common = _gamma_to_common(m)
+            if common is None or not common["end_date_iso"]:
                 continue
             try:
-                end_dt = datetime.fromisoformat(str(end_raw).replace("Z", "+00:00"))
+                end_dt = datetime.fromisoformat(
+                    str(common["end_date_iso"]).replace("Z", "+00:00"))
             except Exception:
                 continue
             if end_dt.timestamp() < cutoff_ts:
+                walked_past_window = True
                 continue
-            if float(m.get("volume", 0) or 0) < min_volume:
+            if common["volume"] < min_volume:
                 continue
-            results.append(m)
+            results.append(common)
+            accepted_this_page += 1
             if len(results) >= limit:
                 break
-        cursor = payload.get("next_cursor") or ""
-        if not cursor:
+        logger.info(f"gamma page {pages} (offset={offset}): "
+                    f"scanned={len(batch)} accepted={accepted_this_page} "
+                    f"total={len(results)}/{limit}")
+        if walked_past_window and accepted_this_page == 0:
+            # Every row on this page was older than the window edge, and
+            # we're walking newest-first — nothing further will match.
             break
+        if len(batch) < page_size:
+            break
+        offset += page_size
     logger.info(f"fetched {len(results)} resolved markets (window={window_days}d, limit={limit})")
     return results
 
@@ -163,7 +231,7 @@ def _fetch_resolved_markets(window_days: int, limit: int,
 def _market_resolution(market: dict) -> float | None:
     """
     Returns 1.0 if YES resolved, 0.0 if NO resolved, None if ambiguous.
-    Closed Polymarket markets expose a winning token via tokens[].winner.
+    Uses tokens[].winner computed from outcomePrices (price >= 0.99).
     """
     for tok in market.get("tokens", []) or []:
         if tok.get("winner"):
