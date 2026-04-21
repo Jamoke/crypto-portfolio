@@ -300,9 +300,11 @@ services:
       - portfolio_net
 
   # ----------------------------------------------------------
-  # News Collector — CryptoPanic + CryptoCompare aggregator
+  # News Collector — CryptoCompare news aggregator
   # Feeds claude_analyst + email_digest so event explanations are
   # grounded in actual headlines rather than hallucinated causes.
+  # (CryptoPanic integration was removed April 2026 when they
+  #  discontinued their free Developer API.)
   # ----------------------------------------------------------
   news_collector:
     build: ./services/news_collector
@@ -310,7 +312,6 @@ services:
     restart: unless-stopped
     environment:
       - REDIS_URL=redis://redis:6379
-      - CRYPTOPANIC_TOKEN=${CRYPTOPANIC_TOKEN:-}
       - CRYPTOCOMPARE_API_KEY=${CRYPTOCOMPARE_API_KEY:-}
       - NEWS_POLL_INTERVAL=${NEWS_POLL_INTERVAL:-1800}
       - ASSET_GOVERNOR_URL=http://asset_governor:8090

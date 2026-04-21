@@ -5,7 +5,7 @@
   "version": 1,
   "refresh": "30s",
   "time": { "from": "now-24h", "to": "now" },
-  "description": "Observability for the CryptoPanic + CryptoCompare news aggregator that feeds claude_analyst's event_explanations and the email digest's 'Notable Moves' section.",
+  "description": "Observability for the CryptoCompare news aggregator that feeds claude_analyst's event_explanations and the email digest's 'Notable Moves' section. (CryptoPanic integration was removed April 2026 when the free Developer API was retired.)",
   "panels": [
 
     { "type": "row", "id": 100, "title": "Collector health", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false },
@@ -28,25 +28,9 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
     },
     {
-      "id": 102, "type": "stat", "title": "Minutes since CryptoPanic success",
-      "description": "If this climbs while CryptoCompare stays green, your CRYPTOPANIC_TOKEN is likely missing, invalid, or rate-limited (100 req/day free tier).",
-      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
-      "fieldConfig": { "defaults": { "unit": "m",
-        "color": { "mode": "thresholds" },
-        "thresholds": { "steps": [
-          { "color": "green", "value": null },
-          { "color": "yellow", "value": 60 },
-          { "color": "red", "value": 180 }
-        ] } } },
-      "targets": [{
-        "expr": "(time() - news_last_success_timestamp{source=\"cryptopanic\"}) / 60",
-        "datasource": { "type": "prometheus", "uid": "prometheus" }
-      }],
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
-    },
-    {
       "id": 103, "type": "stat", "title": "Minutes since CryptoCompare success",
-      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
+      "description": "CryptoCompare free tier is 100k req/mo — effectively unlimited at our poll cadence. If this climbs, the container is stuck or the API key is invalid.",
+      "gridPos": { "x": 6, "y": 1, "w": 12, "h": 4 },
       "fieldConfig": { "defaults": { "unit": "m",
         "color": { "mode": "thresholds" },
         "thresholds": { "steps": [
@@ -80,7 +64,7 @@
 
     {
       "id": 201, "type": "timeseries", "title": "Items fetched per source (1h bins)",
-      "description": "Slope reflects news flow — expected to spike during volatile sessions. Flat-zero on one source = that source is down.",
+      "description": "Slope reflects news flow — expected to spike during volatile sessions. Labelled by source so a future second provider can be added without changing the panel.",
       "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
       "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 15, "stacking": { "mode": "normal" } } } },
       "targets": [{

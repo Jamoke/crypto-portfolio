@@ -3,29 +3,34 @@ News Collector Service
 Polls crypto news APIs every 30 minutes and writes per-symbol news items
 into Redis so the claude_analyst can explain price moves in context.
 
-Sources (both have usable free tiers; service degrades gracefully if either
-key is missing):
-  - CryptoPanic        https://cryptopanic.com/developers/api/  (100 req/day free)
+Source:
   - CryptoCompare News https://min-api.cryptocompare.com/       (100k req/mo free)
+
+Previously this service also integrated CryptoPanic, but CryptoPanic retired
+its free Developer API on April 1, 2026 — integration removed. If a
+replacement source is added later (NewsData.io, Messari API once confirmed
+to include API access under Coinbase One, etc.), slot it alongside the
+existing CryptoCompare path; the Redis shape and Prometheus metrics are
+source-agnostic.
 
 Redis shape:
   signals:news:{SYMBOL}    — JSON list of {headline, source, url, published_at,
                              sentiment, body_summary} objects, last 20, TTL 48h.
-  signals:news:global      — same shape but for market-wide headlines.
   signals:news:last_refresh — ISO8601 timestamp of last successful poll.
 
 Cardinality:
   symbol label is bounded by the asset_governor allowed list (~10-20 assets),
-  source label is {cryptopanic, cryptocompare}. Safe for Prometheus.
+  source label is {cryptocompare}. Safe for Prometheus.
 
 Design notes:
   - Symbols are pulled from asset_governor /allowed_symbols on each cycle so
     config changes propagate without a restart.
-  - CryptoPanic supports currencies=X,Y,Z filter — one request covers all
-    tracked symbols. CryptoCompare News requires per-category fetch; we batch
-    as many symbols as the API accepts per call (comma-separated categories).
-  - Sentiment is taken from CryptoPanic's vote counts (positive - negative).
-    CryptoCompare News doesn't score sentiment; left as None.
+  - CryptoCompare returns a global news feed; we filter per-symbol by scanning
+    the `categories` field (CryptoCompare's categorical tags) and falling back
+    to title-string matching for uncategorised posts.
+  - CryptoCompare doesn't score sentiment; `sentiment` field left as None.
+    If/when a sentiment source returns, claude_analyst already consumes the
+    field when present.
   - Headlines are deduplicated by URL within a symbol window so repeated
     aggregator scrapes don't flood Redis.
 """
@@ -46,7 +51,6 @@ logger = logging.getLogger(__name__)
 
 # ── Environment ───────────────────────────────────────────────────────────────
 REDIS_URL              = os.environ.get("REDIS_URL", "redis://redis:6379")
-CRYPTOPANIC_TOKEN      = os.environ.get("CRYPTOPANIC_TOKEN", "")
 CRYPTOCOMPARE_API_KEY  = os.environ.get("CRYPTOCOMPARE_API_KEY", "")
 POLL_INTERVAL_SECONDS  = int(os.environ.get("NEWS_POLL_INTERVAL", "1800"))  # 30 min default
 METRICS_PORT           = int(os.environ.get("METRICS_PORT", "9107"))
@@ -126,65 +130,6 @@ def _write_symbol_news(symbol: str, items: list[dict]):
     news_items_in_redis.labels(symbol=symbol).set(len(merged))
 
 
-# ── CryptoPanic ───────────────────────────────────────────────────────────────
-
-def fetch_cryptopanic(symbols: list[str]) -> dict[str, list[dict]]:
-    """
-    One request covers all symbols via currencies= filter. Returns
-    {symbol: [item, ...]} where each item matches the unified schema.
-    """
-    if not CRYPTOPANIC_TOKEN:
-        return {}
-
-    # CryptoPanic caps currencies filter length; group in batches of 25.
-    out: dict[str, list[dict]] = {s: [] for s in symbols}
-    for chunk_start in range(0, len(symbols), 25):
-        chunk = symbols[chunk_start:chunk_start + 25]
-        try:
-            resp = requests.get(
-                "https://cryptopanic.com/api/v1/posts/",
-                params={
-                    "auth_token": CRYPTOPANIC_TOKEN,
-                    "currencies": ",".join(chunk),
-                    "public": "true",
-                    "kind": "news",
-                },
-                timeout=15,
-            )
-            if resp.status_code != 200:
-                logger.warning(f"cryptopanic non-200: {resp.status_code} body={resp.text[:200]}")
-                news_fetch_failures_total.labels(source="cryptopanic").inc()
-                continue
-            data = resp.json()
-        except Exception as e:
-            logger.warning(f"cryptopanic fetch failed: {e}")
-            news_fetch_failures_total.labels(source="cryptopanic").inc()
-            continue
-
-        for post in data.get("results", []) or []:
-            votes = post.get("votes") or {}
-            # CryptoPanic sentiment: positive - negative (community voted)
-            sentiment = (votes.get("positive", 0) or 0) - (votes.get("negative", 0) or 0)
-            item = {
-                "headline": post.get("title", ""),
-                "source": (post.get("source") or {}).get("title", "cryptopanic"),
-                "url": post.get("url") or post.get("original_url"),
-                "published_at": post.get("published_at", ""),
-                "sentiment": sentiment,
-                "provider": "cryptopanic",
-                "body_summary": None,  # CryptoPanic free tier doesn't return bodies
-            }
-            # A post can tag multiple currencies; attribute to all matches
-            for cur in post.get("currencies") or []:
-                code = (cur.get("code") or "").upper()
-                if code in out:
-                    out[code].append(item)
-                    news_items_fetched_total.labels(source="cryptopanic", symbol=code).inc()
-
-    news_last_success_timestamp.labels(source="cryptopanic").set(time.time())
-    return out
-
-
 # ── CryptoCompare ─────────────────────────────────────────────────────────────
 
 def fetch_cryptocompare(symbols: list[str]) -> dict[str, list[dict]]:
@@ -253,7 +198,7 @@ def run_cycle():
     logger.info(f"cycle start: tracking {len(symbols)} symbols {symbols}")
 
     combined: dict[str, list[dict]] = {s: [] for s in symbols}
-    for source_name, fn in (("cryptopanic", fetch_cryptopanic), ("cryptocompare", fetch_cryptocompare)):
+    for source_name, fn in (("cryptocompare", fetch_cryptocompare),):
         try:
             part = fn(symbols)
         except Exception as e:
@@ -277,8 +222,8 @@ def run_cycle():
 
 if __name__ == "__main__":
     logger.info(
-        f"News Collector started (cryptopanic={'yes' if CRYPTOPANIC_TOKEN else 'NO KEY'}, "
-        f"cryptocompare={'yes' if CRYPTOCOMPARE_API_KEY else 'unauthenticated'}, "
+        f"News Collector started (cryptocompare="
+        f"{'yes' if CRYPTOCOMPARE_API_KEY else 'unauthenticated'}, "
         f"interval={POLL_INTERVAL_SECONDS}s)"
     )
     start_http_server(METRICS_PORT)

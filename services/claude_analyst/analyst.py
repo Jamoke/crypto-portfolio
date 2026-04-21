@@ -185,14 +185,14 @@ def run_claude_analysis(market_data: dict, tv_signals: list, ft_signals: dict,
 ## Freqtrade Strategy Signals
 {json.dumps(ft_signals, indent=2)}
 
-## Recent News by Symbol (last 48h, from CryptoPanic + CryptoCompare)
+## Recent News by Symbol (last 48h, from CryptoCompare)
 {json.dumps(news, indent=2) if news else "No news data available (news_collector service may be down or missing API keys)."}
 
 ## Notable 24h Movers (>= {notable_threshold}% absolute)
 {json.dumps(notable_movers, indent=2) if notable_movers else "None today."}
 
 ## Your Task
-For each asset in the market data, provide a structured signal with 2-4 evidence-grounded reasoning bullets. Prefer concrete citations ("CryptoPanic flags X exploit investigation" / "24h volume spike of Y%") over generic statements ("market sentiment is cautious"). If news is empty for a symbol, say so explicitly and note you're working from price/technicals alone.
+For each asset in the market data, provide a structured signal with 2-4 evidence-grounded reasoning bullets. Prefer concrete citations ("CryptoCompare headline: 'X protocol halts withdrawals'" / "24h volume spike of Y%") over generic statements ("market sentiment is cautious"). If news is empty for a symbol, say so explicitly and note you're working from price/technicals alone.
 
 For each asset in `notable_movers`, add an entry to `event_explanations` with 3-5 bullets attempting to explain the move. If the news feed provides a clear driver, cite it. If it does not, say "Cause unclear from available data — candidate drivers include ..." rather than inventing one.
 
@@ -206,7 +206,7 @@ Respond with ONLY valid JSON in this exact format:
       "confidence": 0.75,
       "direction": "bullish",
       "reasoning_bullets": [
-        "First evidence-grounded observation",
+        "First evidence-grounded observation — cite specific CryptoCompare headline if relevant",
         "Second observation",
         "Third observation (optional)"
       ],
