@@ -1,0 +1,202 @@
+{
+  "title": "DCA Accumulator",
+  "uid": "dca-accumulator",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-30d", "to": "now" },
+  "description": "Dollar-cost averaging into BTC/ETH. Scheduled leg fires weekly (Mon 09:00 local by default); dip-acceleration leg fires immediately on a >8% 24h drop, capped at 3/month/asset. All fires are simulation=true until SIMULATION_MODE is flipped globally.",
+  "panels": [
+
+    { "type": "row", "id": 100, "title": "Cadence health", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 101, "type": "stat", "title": "Hours since last scheduled BTC fire",
+      "description": "Weekly cadence — should sit under ~168h. Anything above 200h means a missed Monday (TZ bug, container crash over the weekend, config disabled).",
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "h",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 170 },
+          { "color": "red", "value": 200 }
+        ] } } },
+      "targets": [{
+        "expr": "(time() - dca_last_scheduled_timestamp{symbol=\"BTC\"}) / 3600",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 102, "type": "stat", "title": "Hours since last scheduled ETH fire",
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "h",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 170 },
+          { "color": "red", "value": 200 }
+        ] } } },
+      "targets": [{
+        "expr": "(time() - dca_last_scheduled_timestamp{symbol=\"ETH\"}) / 3600",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 103, "type": "stat", "title": "Minutes since last cycle",
+      "description": "The DCA loop runs every hour. If this climbs past ~75m, the container is stuck or crashed.",
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "m",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 75 },
+          { "color": "red", "value": 120 }
+        ] } } },
+      "targets": [{
+        "expr": "(time() - dca_cycle_last_success_timestamp) / 60",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 104, "type": "stat", "title": "Portfolio value (sizing basis)",
+      "description": "From Redis key portfolio:estimated_value. Defaults to $10,000 when unset — if you see exactly that, the upstream feed isn't writing.",
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "fixed", "fixedColor": "blue" } } },
+      "targets": [{
+        "expr": "dca_portfolio_value_usd",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    { "type": "row", "id": 200, "title": "Fires & capital deployed", "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 201, "type": "stat", "title": "Scheduled fires (30d)",
+      "gridPos": { "x": 0, "y": 6, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" } } },
+      "targets": [{
+        "expr": "sum(increase(dca_signals_total{reason=\"scheduled_weekly\"}[30d]))",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 202, "type": "stat", "title": "Dip-acceleration fires (30d)",
+      "description": "Count of extra buys triggered by >8% 24h drops. Zero is normal in calm markets; consistent non-zero means you're catching volatility.",
+      "gridPos": { "x": 6, "y": 6, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "blue", "value": null },
+          { "color": "orange", "value": 1 },
+          { "color": "red", "value": 6 }
+        ] } } },
+      "targets": [{
+        "expr": "sum(increase(dca_signals_total{reason=\"dip_acceleration\"}[30d]))",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 203, "type": "stat", "title": "Capital deployed (30d)",
+      "description": "Sum of all DCA buy notionals over the last 30 days — scheduled + dip, both symbols.",
+      "gridPos": { "x": 12, "y": 6, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "color": { "mode": "fixed", "fixedColor": "purple" } } },
+      "targets": [{
+        "expr": "sum(increase(dca_amount_usd_total[30d]))",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 204, "type": "stat", "title": "CoinGecko fetch failures (24h)",
+      "description": "Each failure blocks the dip check for that symbol/cycle. Persistent failures mean we can't act on drawdowns — fix the API key or rate limit.",
+      "gridPos": { "x": 18, "y": 6, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 1 },
+          { "color": "red", "value": 10 }
+        ] } } },
+      "targets": [{
+        "expr": "sum(increase(dca_price_fetch_failures_total[24h]))",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    {
+      "id": 210, "type": "timeseries", "title": "Cumulative capital deployed by symbol",
+      "description": "Running total of USD committed to each asset. Slope = average weekly allocation; steps = dip-acceleration events.",
+      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD",
+        "custom": { "lineWidth": 2, "fillOpacity": 15, "stacking": { "mode": "normal" } } } },
+      "targets": [{
+        "expr": "sum by (symbol) (dca_amount_usd_total)",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "id": 211, "type": "timeseries", "title": "Fires per week by reason",
+      "description": "Weekly count of buys split by scheduled vs. dip-acceleration. Healthy pattern: 2 scheduled/week (one per asset), dips as bonus.",
+      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [{
+        "expr": "sum by (reason) (increase(dca_signals_total[1w]))",
+        "legendFormat": "{{reason}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+
+    { "type": "row", "id": 300, "title": "Dip-acceleration budget", "gridPos": { "x": 0, "y": 18, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 301, "type": "bargauge", "title": "Accelerations used this month",
+      "description": "Cap is 3/month/asset (configurable via dca_accumulator.dip_acceleration.max_accelerations). Hitting the cap silently blocks further dip buys until month rollover.",
+      "gridPos": { "x": 0, "y": 19, "w": 12, "h": 6 },
+      "fieldConfig": { "defaults": { "min": 0, "max": 3,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 2 },
+          { "color": "red", "value": 3 }
+        ] } } },
+      "options": { "displayMode": "gradient", "orientation": "horizontal" },
+      "targets": [{
+        "expr": "dca_accelerations_this_month",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "id": 302, "type": "text", "title": "How the dip trigger works",
+      "gridPos": { "x": 12, "y": 19, "w": 12, "h": 6 },
+      "options": {
+        "mode": "markdown",
+        "content": "Every hourly cycle, the executor asks CoinGecko for the 24h price change of BTC and ETH. If either is below `trigger_drop` (default **-8%**), it publishes a DCA signal sized at `multiplier × base_amount` (default **2×**), then increments `dca:accelerations:{symbol}:{YYYY-MM}` in Redis.\n\n- **Cap**: 3 fires/month/asset (`max_accelerations`). Beyond the cap, the function logs and returns — no error, no alert.\n- **Reset**: Redis key expires after ~5 weeks; the gauge snaps back at month rollover.\n- **Failure mode**: if CoinGecko 24h fetch fails, the symbol is silently skipped for that cycle — see the 'CoinGecko fetch failures' stat at the top."
+      }
+    },
+
+    { "type": "row", "id": 400, "title": "Signal inspection", "gridPos": { "x": 0, "y": 25, "w": 24, "h": 1 }, "collapsed": false },
+    {
+      "id": 401, "type": "text", "title": "CLI: read recent DCA signals from Redis",
+      "gridPos": { "x": 0, "y": 26, "w": 24, "h": 5 },
+      "options": {
+        "mode": "markdown",
+        "content": "The email digest reads `signals:dca:queue` — the same list Prometheus counts above. To view the raw JSON of the most recent fires:\n\n```bash\n# Last 10 DCA signals, prettified\ndocker compose exec redis redis-cli LRANGE signals:dca:queue 0 9 \\\n  | docker compose exec -T polymarket jq -s '.'\n\n# Current acceleration counter per asset (keys expire ~5 weeks after month end)\ndocker compose exec redis redis-cli --scan --pattern 'dca:accelerations:*'\n\n# This week's scheduled-fire marker (prevents double-fire within the 30min window)\ndocker compose exec redis redis-cli --scan --pattern 'dca:last_scheduled:*'\n```\n\nRemember: every signal object has `\"simulation\": true` as long as `SIMULATION_MODE=true` in the `.env`. The defi_executor consumes these signals in live mode; in sim it's log-only."
+      }
+    }
+  ],
+  "templating": {
+    "list": [{
+      "name": "DS_PROMETHEUS", "type": "datasource", "pluginId": "prometheus",
+      "hide": 2, "current": { "text": "Prometheus", "value": "prometheus" }
+    }]
+  }
+}

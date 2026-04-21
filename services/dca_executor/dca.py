@@ -23,6 +23,7 @@ import requests
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from prometheus_client import Counter, Gauge, start_http_server
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -32,6 +33,45 @@ REDIS_URL       = os.environ.get("REDIS_URL", "redis://redis:6379")
 SIMULATION_MODE = os.environ.get("SIMULATION_MODE", "true").lower() == "true"
 TIMEZONE        = os.environ.get("TZ", "America/Los_Angeles")
 COINGECKO_API_KEY = os.environ.get("COINGECKO_API_KEY", "")
+METRICS_PORT    = int(os.environ.get("METRICS_PORT", "9106"))
+
+# ── Prometheus metrics ────────────────────────────────────────────────────────
+# Cardinality is bounded: symbol ∈ {BTC, ETH} (and any future additions in
+# strategy_config.yaml::dca_accumulator.assets), reason ∈ {scheduled_weekly,
+# dip_acceleration_*}. We collapse dip reasons to a single label below.
+dca_signals_total = Counter(
+    "dca_signals_total",
+    "DCA buy signals emitted, labelled by symbol and reason",
+    ["symbol", "reason"],
+)
+dca_amount_usd_total = Counter(
+    "dca_amount_usd_total",
+    "Cumulative USD notional of DCA signals (simulated until live mode flips)",
+    ["symbol", "reason"],
+)
+dca_accelerations_this_month = Gauge(
+    "dca_accelerations_this_month",
+    "Dip-acceleration fires this calendar month (resets at month boundary)",
+    ["symbol"],
+)
+dca_last_scheduled_timestamp = Gauge(
+    "dca_last_scheduled_timestamp",
+    "Unix timestamp of the most recent scheduled (non-dip) DCA fire per symbol",
+    ["symbol"],
+)
+dca_portfolio_value_usd = Gauge(
+    "dca_portfolio_value_usd",
+    "Portfolio value used to size DCA buys (from portfolio:estimated_value in Redis)",
+)
+dca_cycle_last_success_timestamp = Gauge(
+    "dca_cycle_last_success_timestamp",
+    "Unix timestamp of the last successful run_dca_cycle() call",
+)
+dca_price_fetch_failures_total = Counter(
+    "dca_price_fetch_failures_total",
+    "CoinGecko 24h-change fetch failures (blocks dip-acceleration for that cycle)",
+    ["symbol"],
+)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 STRATEGY_CONFIG = Path("/app/config/strategy_config.yaml")
@@ -52,9 +92,9 @@ def load_dca_config() -> dict:
 def get_portfolio_value() -> float:
     """Estimate total portfolio value from Redis (set by defi_executor or manually)."""
     val = r.get("portfolio:estimated_value")
-    if val:
-        return float(val)
-    return 10000.0  # Default assumption when no data available
+    pv = float(val) if val else 10000.0  # Default assumption when no data available
+    dca_portfolio_value_usd.set(pv)
+    return pv
 
 
 def calc_dca_amount_per_asset(dca_cfg: dict) -> float:
@@ -85,6 +125,14 @@ def publish_dca_signal(symbol: str, amount_usd: float, reason: str = "scheduled"
     r.lpush("signals:dca:queue", json.dumps(signal))
     r.ltrim("signals:dca:queue", 0, 99)                    # keep last 100
 
+    # Collapse dip-acceleration percentage into a single label value so we
+    # don't blow up label cardinality with every distinct -8.1%, -8.2%, ...
+    reason_label = "dip_acceleration" if reason.startswith("dip_acceleration") else reason
+    dca_signals_total.labels(symbol=symbol, reason=reason_label).inc()
+    dca_amount_usd_total.labels(symbol=symbol, reason=reason_label).inc(amount_usd)
+    if reason_label == "scheduled_weekly":
+        dca_last_scheduled_timestamp.labels(symbol=symbol).set(time.time())
+
     mode = "SIMULATION" if SIMULATION_MODE else "LIVE"
     logger.info(f"[{mode}] DCA signal: {symbol} ${amount_usd:.2f} ({reason})")
 
@@ -113,6 +161,7 @@ def fetch_price_change_24h(symbol: str) -> float | None:
             return data[0].get("price_change_percentage_24h_in_currency")
     except Exception as e:
         logger.warning(f"Could not fetch price change for {symbol}: {e}")
+        dca_price_fetch_failures_total.labels(symbol=symbol).inc()
     return None
 
 
@@ -134,6 +183,7 @@ def check_dip_acceleration(dca_cfg: dict, base_amount_usd: float):
         # Check how many accelerations have fired this month
         month_key = f"dca:accelerations:{symbol}:{datetime.now().strftime('%Y-%m')}"
         count = int(r.get(month_key) or 0)
+        dca_accelerations_this_month.labels(symbol=symbol).set(count)
         if count >= max_monthly:
             logger.info(f"DCA dip acceleration: {symbol} hit monthly limit ({max_monthly})")
             continue
@@ -145,8 +195,9 @@ def check_dip_acceleration(dca_cfg: dict, base_amount_usd: float):
         if change < trigger_drop:
             accel_amount = base_amount_usd * multiplier
             publish_dca_signal(symbol, accel_amount, reason=f"dip_acceleration_{change:.1f}pct")
-            r.incr(month_key)
+            new_count = r.incr(month_key)
             r.expire(month_key, 86400 * 35)  # Expire after ~5 weeks
+            dca_accelerations_this_month.labels(symbol=symbol).set(int(new_count))
 
 
 def is_scheduled_time(dca_cfg: dict) -> bool:
@@ -211,9 +262,13 @@ def run_dca_cycle():
     # Dip acceleration check (runs every cycle regardless of schedule)
     check_dip_acceleration(dca_cfg, base_amount)
 
+    dca_cycle_last_success_timestamp.set(time.time())
+
 
 if __name__ == "__main__":
     logger.info(f"DCA Executor started (simulation={SIMULATION_MODE})")
+    start_http_server(METRICS_PORT)
+    logger.info(f"Metrics server started on port {METRICS_PORT}")
     time.sleep(20)  # Wait for Redis and other services
 
     while True:

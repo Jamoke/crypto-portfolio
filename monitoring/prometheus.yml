@@ -37,3 +37,8 @@ scrape_configs:
     static_configs:
       - targets: ["polymarket:9104"]
     metrics_path: /metrics
+
+  - job_name: "dca_executor"
+    static_configs:
+      - targets: ["dca_executor:9106"]
+    metrics_path: /metrics
