@@ -300,6 +300,27 @@ services:
       - portfolio_net
 
   # ----------------------------------------------------------
+  # News Collector — CryptoPanic + CryptoCompare aggregator
+  # Feeds claude_analyst + email_digest so event explanations are
+  # grounded in actual headlines rather than hallucinated causes.
+  # ----------------------------------------------------------
+  news_collector:
+    build: ./services/news_collector
+    container_name: news_collector
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - CRYPTOPANIC_TOKEN=${CRYPTOPANIC_TOKEN:-}
+      - CRYPTOCOMPARE_API_KEY=${CRYPTOCOMPARE_API_KEY:-}
+      - NEWS_POLL_INTERVAL=${NEWS_POLL_INTERVAL:-1800}
+      - ASSET_GOVERNOR_URL=http://asset_governor:8090
+      - TZ=${TIMEZONE:-America/Los_Angeles}
+    depends_on:
+      - redis
+    networks:
+      - portfolio_net
+
+  # ----------------------------------------------------------
   # Freqtrade FreqAI Bot — ML-enhanced strategy (Plan 5)
   # Runs LightGBM classifier trained on RSI/EMA/volume features
   # Deferred — deploy after MomentumStrategy baseline is validated

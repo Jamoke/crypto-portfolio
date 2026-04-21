@@ -42,3 +42,8 @@ scrape_configs:
     static_configs:
       - targets: ["dca_executor:9106"]
     metrics_path: /metrics
+
+  - job_name: "news_collector"
+    static_configs:
+      - targets: ["news_collector:9107"]
+    metrics_path: /metrics

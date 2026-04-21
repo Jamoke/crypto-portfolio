@@ -131,10 +131,50 @@ def get_freqtrade_signals() -> dict:
     return signals
 
 
-def run_claude_analysis(market_data: dict, tv_signals: list, ft_signals: dict) -> dict:
+def get_news_for_symbols(symbols: list[str], per_symbol_limit: int = 6) -> dict:
+    """
+    Pull recent news items per symbol from the news_collector service.
+    Returns {symbol: [item, ...]} with up to `per_symbol_limit` of the most
+    recent headlines per symbol — enough context for Claude to explain a move
+    without blowing the token budget.
+    """
+    out = {}
+    for sym in symbols:
+        raw = r.get(f"signals:news:{sym}")
+        if not raw:
+            continue
+        try:
+            items = json.loads(raw)
+        except Exception:
+            continue
+        # Trim each item to the fields Claude actually needs to cite an event
+        trimmed = []
+        for it in items[:per_symbol_limit]:
+            trimmed.append({
+                "headline": it.get("headline", ""),
+                "source": it.get("source", ""),
+                "published_at": it.get("published_at", ""),
+                "sentiment": it.get("sentiment"),
+                "body_summary": it.get("body_summary"),
+            })
+        if trimmed:
+            out[sym] = trimmed
+    return out
+
+
+def run_claude_analysis(market_data: dict, tv_signals: list, ft_signals: dict,
+                        news: dict) -> dict:
     """Send data to Claude and get structured analysis back."""
 
-    prompt = f"""You are a crypto market analyst for a DeFi portfolio system. Analyze the following data and provide trading signals.
+    # Flag assets with notable 24h moves so Claude explains them explicitly.
+    notable_threshold = 10.0  # percent
+    notable_movers = []
+    for sym, m in (market_data or {}).items():
+        ch = m.get("change_24h_pct")
+        if ch is not None and abs(ch) >= notable_threshold:
+            notable_movers.append({"symbol": sym, "change_24h_pct": round(ch, 2)})
+
+    prompt = f"""You are a crypto market analyst for a DeFi portfolio system. Analyze the following data and provide trading signals. Cite specific evidence from the news feed when available — do not fabricate causes for price moves.
 
 ## Market Data (as of {datetime.now(timezone.utc).isoformat()})
 {json.dumps(market_data, indent=2)}
@@ -145,23 +185,46 @@ def run_claude_analysis(market_data: dict, tv_signals: list, ft_signals: dict) -
 ## Freqtrade Strategy Signals
 {json.dumps(ft_signals, indent=2)}
 
+## Recent News by Symbol (last 48h, from CryptoPanic + CryptoCompare)
+{json.dumps(news, indent=2) if news else "No news data available (news_collector service may be down or missing API keys)."}
+
+## Notable 24h Movers (>= {notable_threshold}% absolute)
+{json.dumps(notable_movers, indent=2) if notable_movers else "None today."}
+
 ## Your Task
-For each asset in the market data, provide a structured signal. Be specific and concise.
+For each asset in the market data, provide a structured signal with 2-4 evidence-grounded reasoning bullets. Prefer concrete citations ("CryptoPanic flags X exploit investigation" / "24h volume spike of Y%") over generic statements ("market sentiment is cautious"). If news is empty for a symbol, say so explicitly and note you're working from price/technicals alone.
+
+For each asset in `notable_movers`, add an entry to `event_explanations` with 3-5 bullets attempting to explain the move. If the news feed provides a clear driver, cite it. If it does not, say "Cause unclear from available data — candidate drivers include ..." rather than inventing one.
 
 Respond with ONLY valid JSON in this exact format:
 {{
   "timestamp": "ISO8601",
-  "market_summary": "2-3 sentence overall market assessment",
+  "market_summary": "2-3 sentence overall market assessment, grounded in the data above",
   "signals": {{
     "BTC": {{
       "signal_strength": 0.6,
       "confidence": 0.75,
       "direction": "bullish",
-      "reasoning": "One sentence max",
+      "reasoning_bullets": [
+        "First evidence-grounded observation",
+        "Second observation",
+        "Third observation (optional)"
+      ],
       "suggested_action": "accumulate",
       "risk_level": "medium"
     }}
   }},
+  "event_explanations": [
+    {{
+      "symbol": "AAVE",
+      "move_pct": -20.3,
+      "explanation_bullets": [
+        "Cited news driver if available",
+        "Corroborating on-chain or market data from the feed",
+        "Confidence caveat — what remains unexplained"
+      ]
+    }}
+  ],
   "macro_notes": "Any important macro factors to flag"
 }}
 
@@ -170,12 +233,14 @@ confidence: 0.0 to 1.0
 direction: "bullish", "bearish", or "neutral"
 suggested_action: "buy", "sell", "hold", "accumulate", "reduce", or "avoid"
 risk_level: "low", "medium", "high", or "extreme"
+
+If there are no notable movers, return an empty list for event_explanations.
 """
 
     try:
         message = claude.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=2000,
+            max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
         text = message.content[0].text.strip()
@@ -318,6 +383,7 @@ def run_analysis_cycle():
     market_data = fetch_coingecko_data(tradeable)
     tv_signals = get_tradingview_signals()
     ft_signals = get_freqtrade_signals()
+    news = get_news_for_symbols(tradeable)
 
     if not market_data and not tv_signals and not ft_signals:
         logger.warning(
@@ -329,7 +395,7 @@ def run_analysis_cycle():
     # Evaluate accuracy of previous predictions before running new analysis
     evaluate_prediction_accuracy(market_data)
 
-    analysis = run_claude_analysis(market_data, tv_signals, ft_signals)
+    analysis = run_claude_analysis(market_data, tv_signals, ft_signals, news)
     publish_signals(analysis)
 
     # Record predictions for next cycle's accuracy check

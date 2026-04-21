@@ -1,0 +1,134 @@
+{
+  "title": "News Collector",
+  "uid": "news-collector",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "description": "Observability for the CryptoPanic + CryptoCompare news aggregator that feeds claude_analyst's event_explanations and the email digest's 'Notable Moves' section.",
+  "panels": [
+
+    { "type": "row", "id": 100, "title": "Collector health", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 101, "type": "stat", "title": "Minutes since last cycle",
+      "description": "Poll interval defaults to 30 min. Anything above ~45m means the container is stuck or API errors are cascading.",
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "m",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 45 },
+          { "color": "red", "value": 90 }
+        ] } } },
+      "targets": [{
+        "expr": "(time() - news_collector_cycle_last_success_timestamp) / 60",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 102, "type": "stat", "title": "Minutes since CryptoPanic success",
+      "description": "If this climbs while CryptoCompare stays green, your CRYPTOPANIC_TOKEN is likely missing, invalid, or rate-limited (100 req/day free tier).",
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "m",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 60 },
+          { "color": "red", "value": 180 }
+        ] } } },
+      "targets": [{
+        "expr": "(time() - news_last_success_timestamp{source=\"cryptopanic\"}) / 60",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 103, "type": "stat", "title": "Minutes since CryptoCompare success",
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "unit": "m",
+        "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 60 },
+          { "color": "red", "value": 180 }
+        ] } } },
+      "targets": [{
+        "expr": "(time() - news_last_success_timestamp{source=\"cryptocompare\"}) / 60",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 104, "type": "stat", "title": "Fetch failures (24h)",
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 1 },
+          { "color": "red", "value": 10 }
+        ] } } },
+      "targets": [{
+        "expr": "sum(increase(news_fetch_failures_total[24h]))",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+
+    { "type": "row", "id": 200, "title": "Coverage", "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 201, "type": "timeseries", "title": "Items fetched per source (1h bins)",
+      "description": "Slope reflects news flow — expected to spike during volatile sessions. Flat-zero on one source = that source is down.",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 15, "stacking": { "mode": "normal" } } } },
+      "targets": [{
+        "expr": "sum by (source) (increase(news_items_fetched_total[1h]))",
+        "legendFormat": "{{source}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+    {
+      "id": 202, "type": "bargauge", "title": "Items per symbol (current Redis state)",
+      "description": "How many recent headlines each tracked symbol currently has in its news cache. Sparse symbols => claude_analyst works from price/technicals alone for those.",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+      "fieldConfig": { "defaults": { "min": 0, "max": 20,
+        "color": { "mode": "continuous-BlPu" } } },
+      "options": { "displayMode": "gradient", "orientation": "horizontal" },
+      "targets": [{
+        "expr": "news_items_in_redis",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+
+    {
+      "id": 210, "type": "timeseries", "title": "Items per symbol over time",
+      "description": "Lets you see which assets generated news flow during a move. Useful for post-hoc: 'was there news before the AAVE drop?' — zoom to the event window.",
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 8 },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [{
+        "expr": "sum by (symbol) (increase(news_items_fetched_total[1h]))",
+        "legendFormat": "{{symbol}}",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      }]
+    },
+
+    { "type": "row", "id": 300, "title": "Inspection", "gridPos": { "x": 0, "y": 22, "w": 24, "h": 1 }, "collapsed": false },
+    {
+      "id": 301, "type": "text", "title": "Read recent news from Redis",
+      "gridPos": { "x": 0, "y": 23, "w": 24, "h": 5 },
+      "options": {
+        "mode": "markdown",
+        "content": "```bash\n# Latest AAVE headlines Claude can see right now\ndocker compose exec redis redis-cli GET signals:news:AAVE \\\n  | docker compose exec -T polymarket jq '.[] | {published_at, headline, source, sentiment}'\n\n# All tracked symbols with news\ndocker compose exec redis redis-cli --scan --pattern 'signals:news:*'\n\n# Last successful collector cycle\ndocker compose exec redis redis-cli GET signals:news:last_refresh\n```\n\nEmpty result for a symbol means either (a) no recent tagged news — normal for low-flow assets, or (b) the collector is down — check the cadence stats above."
+      }
+    }
+  ],
+  "templating": {
+    "list": [{
+      "name": "DS_PROMETHEUS", "type": "datasource", "pluginId": "prometheus",
+      "hide": 2, "current": { "text": "Prometheus", "value": "prometheus" }
+    }]
+  }
+}

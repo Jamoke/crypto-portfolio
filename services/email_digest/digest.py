@@ -129,6 +129,18 @@ def gather_portfolio_data() -> dict:
     # Fetch from /positions via HTTP to get cost basis
     data["tax_summary"] = _fetch_tax_summary()
 
+    # Polymarket opportunities (Phase B output — Kelly-sized simulated bets)
+    poly_opps = r.lrange("signals:polymarket:opportunities", 0, 4)
+    data["polymarket_opportunities"] = [json.loads(o) for o in poly_opps]
+
+    # Polymarket whale roster summary (Phase A)
+    whales_raw = r.get("signals:polymarket:whales:summary")
+    data["polymarket_whales"] = json.loads(whales_raw) if whales_raw else None
+
+    # Sanity ping on news collector — if last_refresh is stale, tell Claude so
+    # it doesn't pretend to have news context when the service is down.
+    data["news_last_refresh"] = r.get("signals:news:last_refresh")
+
     return data
 
 
@@ -186,10 +198,15 @@ def compose_digest_json(portfolio_data: dict) -> dict:
         if p.get("unrealized_gain_usd") is not None and p["unrealized_gain_usd"] < -50
     ]
 
+    poly_opps = portfolio_data.get("polymarket_opportunities", []) or []
+    poly_whales = portfolio_data.get("polymarket_whales") or {}
+    upstream_events = analysis.get("event_explanations", []) if analysis else []
+
     prompt = f"""You are composing a daily crypto portfolio digest. Return ONLY valid JSON (no markdown, no prose).
 
 Today: {datetime.now(timezone.utc).strftime('%A, %B %d, %Y %H:%M UTC')}
 Trading mode: {"PAUSED — " + portfolio_data.get("pause_reason","") if portfolio_data.get("trading_paused") else "SIMULATION (dry-run, no real trades)"}
+News feed last refresh: {portfolio_data.get("news_last_refresh") or "UNKNOWN — news_collector may be down"}
 
 == Bot Performance ==
 Momentum bot daily P&L: {portfolio_data.get("bot_momentum_daily_pnl")}
@@ -199,15 +216,24 @@ Scalp bot daily P&L: {portfolio_data.get("bot_scalp_daily_daily_pnl")}
 Scalp bot win rate: {portfolio_data.get("bot_scalp_win_rate")}
 Scalp bot balance: {portfolio_data.get("bot_scalp_balance")}
 
-== Claude Market Analysis ==
+== Claude Market Analysis (upstream from claude_analyst) ==
 {json.dumps(analysis.get("signals", {}), indent=2) if analysis else "No analysis available yet."}
 Market summary: {analysis.get("market_summary", "N/A")}
+
+== Event Explanations (from claude_analyst, for >=10% 24h moves) ==
+{json.dumps(upstream_events, indent=2) if upstream_events else "None — either no notable moves today, or upstream analyst hasn't generated explanations yet."}
 
 == Recent Simulated Trades ==
 {json.dumps(sim_trades[:5], indent=2) if sim_trades else "No trades yet."}
 
 == DCA Activity ==
 {json.dumps(portfolio_data.get("dca_signals", [])[:3], indent=2) if portfolio_data.get("dca_signals") else "No DCA signals this period."}
+
+== Polymarket Opportunities (top 5, simulation-only) ==
+{json.dumps(poly_opps[:5], indent=2) if poly_opps else "No active opportunities."}
+
+== Polymarket Whale Roster Summary ==
+{json.dumps({"whales_count": poly_whales.get("whales_count"), "updated_at": poly_whales.get("updated_at"), "top_5": (poly_whales.get("top") or [])[:5]}, indent=2) if poly_whales else "No whale data available (Phase A tracker may not have run yet)."}
 
 == Tax / Financial ==
 Positions with unrealized losses (harvesting candidates):
@@ -219,7 +245,8 @@ All positions:
 == Pending Actions ==
 {json.dumps(pending_actions, indent=2) if pending_actions else "None."}
 
-Respond with this exact JSON structure (fill all fields, use null if data is unavailable):
+Respond with this exact JSON structure (fill all fields, use null or [] if data is unavailable). Prefer evidence-grounded bullets over vague statements; cite the upstream event_explanations verbatim when carrying them through. Never fabricate causes for price moves — if upstream analyst said cause is unclear, carry that forward.
+
 {{
   "summary_bullets": ["bullet 1", "bullet 2", "bullet 3"],
   "strategy_table": [
@@ -227,20 +254,33 @@ Respond with this exact JSON structure (fill all fields, use null if data is una
     {{"bot": "scalp", "daily_pnl": "$X.XX", "win_rate": "XX%", "balance": "$X", "status": "running"}}
   ],
   "top_signals": [
-    {{"symbol": "ETH", "direction": "bullish", "confidence": "0.82", "action": "accumulate", "reasoning": "one sentence"}}
+    {{"symbol": "ETH", "direction": "bullish", "confidence": "0.82", "action": "accumulate",
+      "reasoning_bullets": ["evidence 1", "evidence 2"]}}
   ],
+  "event_explanations": [
+    {{"symbol": "AAVE", "move_pct": "-20.3%",
+      "explanation_bullets": ["cited driver", "corroborating data", "confidence caveat"]}}
+  ],
+  "polymarket_section": {{
+    "headline": "one sentence on current Polymarket state (or 'No opportunities this period')",
+    "opportunities": [
+      {{"question": "short form", "side": "YES", "edge_pct": "7.2%",
+        "kelly_pct": "18%", "whale_concurrence": true, "amount_usd": "$120.00"}}
+    ],
+    "whale_note": "one sentence on whale roster (size, refresh age, concurrence rate)"
+  }},
   "tax_insights": [
     {{"symbol": "MATIC", "unrealized_pnl": "-$34.20", "action": "Consider selling to harvest loss", "holding_period": "short-term"}}
   ],
   "dca_activity": "one sentence summary of DCA activity or 'No DCA events this period'",
-  "system_health": "one sentence about system status",
+  "system_health": "one sentence about system status, explicitly flagging stale news feed if news_last_refresh is UNKNOWN or older than 2 hours",
   "pending_actions_summary": "one sentence, or 'No pending actions'"
 }}"""
 
     try:
         message = claude.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=2000,
+            max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
         text = message.content[0].text.strip()
@@ -271,6 +311,12 @@ def _fallback_digest_json(portfolio_data: dict) -> dict:
             {"bot": "scalp", "daily_pnl": "N/A", "win_rate": "N/A", "balance": "N/A", "status": "unknown"},
         ],
         "top_signals": [],
+        "event_explanations": [],
+        "polymarket_section": {
+            "headline": "Polymarket data unavailable (Claude fallback path)",
+            "opportunities": [],
+            "whale_note": "N/A",
+        },
         "tax_insights": [],
         "dca_activity": "DCA data unavailable",
         "system_health": f"Trading {'paused: ' + portfolio_data.get('pause_reason','') if paused else 'running in simulation mode'}",
@@ -296,19 +342,62 @@ def render_digest_html(content: dict, pending_actions: list, date_str: str) -> s
           <td style="padding:8px;border:1px solid #ddd;color:{color}">{bot.get("status","N/A")}</td>
         </tr>"""
 
-    # Top signals
+    # Top signals — now renders either reasoning_bullets (new) or reasoning (legacy)
     signal_rows = ""
     for sig in content.get("top_signals", [])[:5]:
         dir_color = "#2ecc71" if sig.get("direction") == "bullish" else (
             "#e74c3c" if sig.get("direction") == "bearish" else "#f39c12"
         )
+        bullets = sig.get("reasoning_bullets") or []
+        if bullets:
+            reasoning_html = "<ul style='margin:0;padding-left:16px;font-size:12px'>" + "".join(
+                f"<li style='margin-bottom:3px'>{b}</li>" for b in bullets
+            ) + "</ul>"
+        else:
+            reasoning_html = f"<span style='font-size:12px'>{sig.get('reasoning','')}</span>"
         signal_rows += f"""
         <tr>
           <td style="padding:8px;border:1px solid #ddd"><strong>{sig.get("symbol","")}</strong></td>
           <td style="padding:8px;border:1px solid #ddd;color:{dir_color}">{sig.get("direction","").upper()}</td>
           <td style="padding:8px;border:1px solid #ddd">{sig.get("confidence","")}</td>
           <td style="padding:8px;border:1px solid #ddd">{sig.get("action","")}</td>
-          <td style="padding:8px;border:1px solid #ddd;font-size:12px">{sig.get("reasoning","")}</td>
+          <td style="padding:8px;border:1px solid #ddd">{reasoning_html}</td>
+        </tr>"""
+
+    # Event explanations — for >=10% 24h movers
+    event_cards = ""
+    for evt in content.get("event_explanations", [])[:8]:
+        move_pct = str(evt.get("move_pct", ""))
+        move_color = "#e74c3c" if move_pct.strip().startswith("-") else "#2ecc71"
+        bullets_html = "".join(
+            f"<li style='margin-bottom:4px'>{b}</li>"
+            for b in (evt.get("explanation_bullets") or [])
+        )
+        event_cards += f"""
+        <div style="border:1px solid #eee;border-radius:6px;padding:12px;margin-bottom:10px;background:#fafbfc">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+            <strong style="font-size:15px">{evt.get("symbol","")}</strong>
+            <span style="color:{move_color};font-weight:bold">{move_pct}</span>
+          </div>
+          <ul style="margin:0;padding-left:18px;font-size:13px">{bullets_html}</ul>
+        </div>"""
+
+    # Polymarket section
+    poly = content.get("polymarket_section") or {}
+    poly_rows = ""
+    for op in (poly.get("opportunities") or [])[:5]:
+        concurrence_badge = (
+            "<span style='background:#27ae60;color:white;padding:2px 6px;"
+            "border-radius:3px;font-size:10px'>WHALES</span>"
+            if op.get("whale_concurrence") else ""
+        )
+        poly_rows += f"""
+        <tr>
+          <td style="padding:8px;border:1px solid #ddd;font-size:12px">{op.get("question","")}</td>
+          <td style="padding:8px;border:1px solid #ddd"><strong>{op.get("side","")}</strong></td>
+          <td style="padding:8px;border:1px solid #ddd">{op.get("edge_pct","")}</td>
+          <td style="padding:8px;border:1px solid #ddd">{op.get("kelly_pct","")}</td>
+          <td style="padding:8px;border:1px solid #ddd">{op.get("amount_usd","")} {concurrence_badge}</td>
         </tr>"""
 
     # Tax insights
@@ -375,6 +464,44 @@ def render_digest_html(content: dict, pending_actions: list, date_str: str) -> s
             "</p></div>"
         )
 
+    # Event-explanations section (only renders if there are notable movers)
+    if not event_cards:
+        events_section_html = ""
+    else:
+        events_section_html = (
+            "<div style='padding:0 16px 16px'>"
+            "<h2 style='font-size:16px;border-bottom:2px solid #eee;padding-bottom:8px'>"
+            "Notable Moves — What We Know</h2>"
+            f"{event_cards}"
+            "</div>"
+        )
+
+    # Polymarket section (always renders; headline/whale_note explain empty state)
+    poly_headline = poly.get("headline", "No Polymarket data available.")
+    poly_whale_note = poly.get("whale_note", "")
+    if poly_rows:
+        poly_table_html = (
+            "<table style='width:100%;border-collapse:collapse;font-size:13px'>"
+            "<thead><tr style='background:#f4f4f4'>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Market</th>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Side</th>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Edge</th>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Kelly</th>"
+            "<th style='padding:8px;border:1px solid #ddd;text-align:left'>Size</th>"
+            f"</tr></thead><tbody>{poly_rows}</tbody></table>"
+        )
+    else:
+        poly_table_html = "<p style='color:#888;font-style:italic;margin:0'>No opportunities passed the scanner filters this period.</p>"
+    polymarket_section_html = (
+        "<div style='padding:0 16px 16px'>"
+        "<h2 style='font-size:16px;border-bottom:2px solid #eee;padding-bottom:8px'>"
+        "Polymarket (Simulation)</h2>"
+        f"<p style='margin:0 0 10px;font-size:13px'>{poly_headline}</p>"
+        f"{poly_table_html}"
+        f"<p style='margin:10px 0 0;font-size:12px;color:#666'><em>Whale roster:</em> {poly_whale_note}</p>"
+        "</div>"
+    )
+
     return f"""
 <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#333">
 
@@ -408,6 +535,10 @@ def render_digest_html(content: dict, pending_actions: list, date_str: str) -> s
     <h2 style="font-size:16px;border-bottom:2px solid #eee;padding-bottom:8px">Market Signals</h2>
     {signal_table_html}
   </div>
+
+  {events_section_html}
+
+  {polymarket_section_html}
 
   <div style="padding:0 16px 16px">
     <h2 style="font-size:16px;border-bottom:2px solid #eee;padding-bottom:8px">DCA Activity</h2>
