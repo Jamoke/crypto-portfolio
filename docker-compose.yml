@@ -259,22 +259,31 @@ services:
 
   # ----------------------------------------------------------
   # Freqtrade Exporter — Prometheus exporter for Freqtrade bot metrics
-  # Polls both bots' REST APIs and exposes /metrics on port 9101
+  # Polls all running bots' REST APIs (momentum, recovery, scalp, freqai),
+  # exposes /metrics on port 9101, and mirrors a per-bot summary into Redis
+  # so the email_digest can render the strategy table without re-scraping.
+  # FreqAI is profile-gated; set FREQTRADE_FREQAI_URL=skip if you don't want
+  # the exporter to attempt it when the freqai profile isn't running.
   # ----------------------------------------------------------
   freqtrade_exporter:
     build: ./services/freqtrade_exporter
     container_name: freqtrade_exporter
     restart: unless-stopped
     environment:
+      - REDIS_URL=redis://redis:6379
       - FREQTRADE_URL=http://freqtrade:8080
+      - FREQTRADE_RECOVERY_URL=http://freqtrade_recovery:8083
       - FREQTRADE_SCALP_URL=http://freqtrade_scalp:8081
+      - FREQTRADE_FREQAI_URL=http://freqtrade_freqai:8082
       - FREQTRADE_USERNAME=${FREQTRADE_USERNAME:-admin}
       - FREQTRADE_PASSWORD=${FREQTRADE_PASSWORD}
       - SCRAPE_INTERVAL=60
     ports:
       - "9101:9101"
     depends_on:
+      - redis
       - freqtrade
+      - freqtrade_recovery
       - freqtrade_scalp
     networks:
       - portfolio_net

@@ -99,14 +99,31 @@ def gather_portfolio_data() -> dict:
     data["trading_paused"] = r.get("system:trading_paused") == "true"
     data["pause_reason"]   = r.get("system:pause_reason") or ""
 
-    # Per-bot profit (set by freqtrade_exporter via Prometheus push or Redis)
-    # We use Redis keys that freqtrade_exporter writes for cross-service sharing
-    data["bot_momentum_daily_pnl"]  = _safe_float(r.get("freqtrade:momentum:daily_pnl"))
-    data["bot_scalp_daily_daily_pnl"] = _safe_float(r.get("freqtrade:scalp:daily_pnl"))
-    data["bot_momentum_win_rate"]   = _safe_float(r.get("freqtrade:momentum:win_rate"))
-    data["bot_scalp_win_rate"]      = _safe_float(r.get("freqtrade:scalp:win_rate"))
-    data["bot_momentum_balance"]    = _safe_float(r.get("freqtrade:momentum:balance"))
-    data["bot_scalp_balance"]       = _safe_float(r.get("freqtrade:scalp:balance"))
+    # Per-bot summary written by freqtrade_exporter every SCRAPE_INTERVAL.
+    # Bots: momentum, recovery, scalp, freqai (freqai only when its profile is up).
+    # If a key is missing, the exporter is down or the bot was unreachable —
+    # we leave the value as None and let Claude / the fallback render N/A.
+    bot_names = ["momentum", "recovery", "scalp", "freqai"]
+    data["bots"] = []
+    try:
+        active_raw = r.get("freqtrade:bots:active")
+        active_set = set(json.loads(active_raw)) if active_raw else set()
+    except Exception:
+        active_set = set()
+
+    for name in bot_names:
+        status = r.get(f"freqtrade:{name}:status")
+        if status is None and name == "freqai":
+            # FreqAI is profile-gated; skip silently when it isn't running.
+            continue
+        data["bots"].append({
+            "name": name,
+            "daily_pnl": _safe_float(r.get(f"freqtrade:{name}:daily_pnl")),
+            "win_rate": _safe_float(r.get(f"freqtrade:{name}:win_rate")),
+            "balance": _safe_float(r.get(f"freqtrade:{name}:balance")),
+            "status": status or ("unreachable" if name in {"momentum", "recovery", "scalp"} else "off"),
+            "in_active_set": name in active_set,
+        })
 
     # Claude signal accuracy (latest per symbol from prediction feedback)
     accuracies = {}
@@ -214,9 +231,10 @@ Today: {datetime.now(timezone.utc).strftime('%A, %B %d, %Y %H:%M UTC')}
 Trading mode: {"PAUSED — " + portfolio_data.get("pause_reason","") if portfolio_data.get("trading_paused") else "SIMULATION (dry-run, no real trades)"}
 News feed last refresh: {portfolio_data.get("news_last_refresh") or "UNKNOWN — news_collector may be down"}
 
-== Bot Performance ==
-momentum: pnl={portfolio_data.get("bot_momentum_daily_pnl")} winrate={portfolio_data.get("bot_momentum_win_rate")} bal={portfolio_data.get("bot_momentum_balance")}
-scalp: pnl={portfolio_data.get("bot_scalp_daily_daily_pnl")} winrate={portfolio_data.get("bot_scalp_win_rate")} bal={portfolio_data.get("bot_scalp_balance")}
+== Bot Performance (sim mode — values from freqtrade_exporter Redis mirror) ==
+{json.dumps(portfolio_data.get("bots", []))}
+Format daily_pnl as "$X.XX" (negative as "-$X.XX"), win_rate as "XX%" (multiply 0.0-1.0 by 100; "N/A" if null), balance as "$X.XX" (or "N/A").
+Include EVERY bot in the strategy_table in this exact order: momentum, recovery, scalp, freqai. Skip a bot ONLY if its name is missing from the input array entirely.
 
 == Claude Market Analysis (upstream from claude_analyst) ==
 {json.dumps(analysis.get("signals", {})) if analysis else "No analysis available yet."}
@@ -252,8 +270,9 @@ Respond with this exact JSON structure. Use null or [] when data is unavailable.
 {{
   "summary_bullets": ["bullet 1", "bullet 2", "bullet 3"],
   "strategy_table": [
-    {{"bot": "momentum", "daily_pnl": "$X.XX", "win_rate": "XX%", "balance": "$X", "status": "running"}},
-    {{"bot": "scalp", "daily_pnl": "$X.XX", "win_rate": "XX%", "balance": "$X", "status": "running"}}
+    {{"bot": "momentum", "daily_pnl": "$X.XX", "win_rate": "XX%", "balance": "$X.XX", "status": "running"}},
+    {{"bot": "recovery", "daily_pnl": "$X.XX", "win_rate": "XX%", "balance": "$X.XX", "status": "running"}},
+    {{"bot": "scalp",    "daily_pnl": "$X.XX", "win_rate": "XX%", "balance": "$X.XX", "status": "running"}}
   ],
   "top_signals": [
     {{"symbol": "ETH", "direction": "bullish", "confidence": "0.82", "action": "accumulate",
@@ -301,19 +320,53 @@ Respond with this exact JSON structure. Use null or [] when data is unavailable.
         return _fallback_digest_json(portfolio_data)
 
 
+def _fmt_money(v):
+    if v is None:
+        return "N/A"
+    return f"-${abs(v):,.2f}" if v < 0 else f"${v:,.2f}"
+
+
+def _fmt_pct(v):
+    if v is None:
+        return "N/A"
+    return f"{v * 100:.0f}%"
+
+
 def _fallback_digest_json(portfolio_data: dict) -> dict:
-    """Return a minimal JSON digest if Claude is unavailable."""
+    """Return a minimal JSON digest if Claude is unavailable.
+
+    Strategy table is rendered from the live exporter mirror in Redis even
+    on the fallback path so we still ship real numbers when only the Claude
+    call failed.
+    """
     paused = portfolio_data.get("trading_paused", False)
+    bot_order = ["momentum", "recovery", "scalp", "freqai"]
+    bots_by_name = {b["name"]: b for b in portfolio_data.get("bots", [])}
+    strategy_table = []
+    for name in bot_order:
+        b = bots_by_name.get(name)
+        if not b:
+            continue
+        strategy_table.append({
+            "bot": name,
+            "daily_pnl": _fmt_money(b.get("daily_pnl")),
+            "win_rate": _fmt_pct(b.get("win_rate")),
+            "balance": _fmt_money(b.get("balance")),
+            "status": b.get("status") or "unknown",
+        })
+    if not strategy_table:
+        strategy_table = [
+            {"bot": "momentum", "daily_pnl": "N/A", "win_rate": "N/A", "balance": "N/A", "status": "unknown"},
+            {"bot": "recovery", "daily_pnl": "N/A", "win_rate": "N/A", "balance": "N/A", "status": "unknown"},
+            {"bot": "scalp",    "daily_pnl": "N/A", "win_rate": "N/A", "balance": "N/A", "status": "unknown"},
+        ]
     return {
         "summary_bullets": [
             f"System mode: {'PAUSED' if paused else 'Simulation'}",
             "Claude API unavailable — using fallback digest",
             "Check system logs for details",
         ],
-        "strategy_table": [
-            {"bot": "momentum", "daily_pnl": "N/A", "win_rate": "N/A", "balance": "N/A", "status": "unknown"},
-            {"bot": "scalp", "daily_pnl": "N/A", "win_rate": "N/A", "balance": "N/A", "status": "unknown"},
-        ],
+        "strategy_table": strategy_table,
         "top_signals": [],
         "event_explanations": [],
         "polymarket_section": {
@@ -336,7 +389,13 @@ def render_digest_html(content: dict, pending_actions: list, date_str: str) -> s
     # Strategy table rows
     strategy_rows = ""
     for bot in content.get("strategy_table", []):
-        color = "#2ecc71" if "running" in str(bot.get("status","")).lower() else "#e74c3c"
+        status_lower = str(bot.get("status","")).lower()
+        if "running" in status_lower:
+            color = "#2ecc71"           # green — alive
+        elif status_lower in {"off", "disabled"}:
+            color = "#888"              # gray — intentionally not running (e.g. freqai profile off)
+        else:
+            color = "#e74c3c"           # red — unreachable / unknown
         strategy_rows += f"""
         <tr>
           <td style="padding:8px;border:1px solid #ddd"><strong>{bot.get("bot","").title()}</strong></td>
