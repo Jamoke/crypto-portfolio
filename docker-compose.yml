@@ -110,7 +110,7 @@ services:
       - portfolio_net
 
   # ----------------------------------------------------------
-  # Claude Analyst — AI market analysis every 6 hours
+  # Claude Analyst — AI market analysis every 8 hours (3x/day)
   # Reads signals from Redis, writes analysis back
   # ----------------------------------------------------------
   claude_analyst:

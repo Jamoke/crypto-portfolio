@@ -204,48 +204,50 @@ def compose_digest_json(portfolio_data: dict) -> dict:
 
     prompt = f"""You are composing a daily crypto portfolio digest. Return ONLY valid JSON (no markdown, no prose).
 
+Style rules — enforce strictly:
+- Bullets are TERSE: <= 90 chars, no filler ("it's worth noting", "as expected", "in light of"). Lead with the fact, not framing.
+- No restating the section header. No closing summary sentences.
+- Carry upstream event_explanations verbatim — do not paraphrase or expand.
+- Never fabricate causes; if upstream said cause is unclear, repeat that.
+
 Today: {datetime.now(timezone.utc).strftime('%A, %B %d, %Y %H:%M UTC')}
 Trading mode: {"PAUSED — " + portfolio_data.get("pause_reason","") if portfolio_data.get("trading_paused") else "SIMULATION (dry-run, no real trades)"}
 News feed last refresh: {portfolio_data.get("news_last_refresh") or "UNKNOWN — news_collector may be down"}
 
 == Bot Performance ==
-Momentum bot daily P&L: {portfolio_data.get("bot_momentum_daily_pnl")}
-Momentum bot win rate: {portfolio_data.get("bot_momentum_win_rate")}
-Momentum bot balance: {portfolio_data.get("bot_momentum_balance")}
-Scalp bot daily P&L: {portfolio_data.get("bot_scalp_daily_daily_pnl")}
-Scalp bot win rate: {portfolio_data.get("bot_scalp_win_rate")}
-Scalp bot balance: {portfolio_data.get("bot_scalp_balance")}
+momentum: pnl={portfolio_data.get("bot_momentum_daily_pnl")} winrate={portfolio_data.get("bot_momentum_win_rate")} bal={portfolio_data.get("bot_momentum_balance")}
+scalp: pnl={portfolio_data.get("bot_scalp_daily_daily_pnl")} winrate={portfolio_data.get("bot_scalp_win_rate")} bal={portfolio_data.get("bot_scalp_balance")}
 
 == Claude Market Analysis (upstream from claude_analyst) ==
-{json.dumps(analysis.get("signals", {}), indent=2) if analysis else "No analysis available yet."}
+{json.dumps(analysis.get("signals", {})) if analysis else "No analysis available yet."}
 Market summary: {analysis.get("market_summary", "N/A")}
 
 == Event Explanations (from claude_analyst, for >=10% 24h moves) ==
-{json.dumps(upstream_events, indent=2) if upstream_events else "None — either no notable moves today, or upstream analyst hasn't generated explanations yet."}
+{json.dumps(upstream_events) if upstream_events else "None."}
 
 == Recent Simulated Trades ==
-{json.dumps(sim_trades[:5], indent=2) if sim_trades else "No trades yet."}
+{json.dumps(sim_trades[:3]) if sim_trades else "No trades yet."}
 
 == DCA Activity ==
-{json.dumps(portfolio_data.get("dca_signals", [])[:3], indent=2) if portfolio_data.get("dca_signals") else "No DCA signals this period."}
+{json.dumps(portfolio_data.get("dca_signals", [])[:3]) if portfolio_data.get("dca_signals") else "No DCA signals this period."}
 
-== Polymarket Opportunities (top 5, simulation-only) ==
-{json.dumps(poly_opps[:5], indent=2) if poly_opps else "No active opportunities."}
+== Polymarket Opportunities (top 3, simulation-only) ==
+{json.dumps(poly_opps[:3]) if poly_opps else "No active opportunities."}
 
 == Polymarket Whale Roster Summary ==
-{json.dumps({"whales_count": poly_whales.get("whales_count"), "updated_at": poly_whales.get("updated_at"), "top_5": (poly_whales.get("top") or [])[:5]}, indent=2) if poly_whales else "No whale data available (Phase A tracker may not have run yet)."}
+{json.dumps({"whales_count": poly_whales.get("whales_count"), "updated_at": poly_whales.get("updated_at"), "top_5": (poly_whales.get("top") or [])[:5]}) if poly_whales else "No whale data."}
 
 == Tax / Financial ==
-Positions with unrealized losses (harvesting candidates):
-{json.dumps(harvesting_candidates[:5], indent=2) if harvesting_candidates else "None (no positions with losses > $50)."}
+Harvesting candidates (losses > $50):
+{json.dumps(harvesting_candidates[:5]) if harvesting_candidates else "None."}
 
 All positions:
-{json.dumps(tax_data[:8], indent=2) if tax_data else "No position data available."}
+{json.dumps(tax_data[:6]) if tax_data else "No position data."}
 
 == Pending Actions ==
-{json.dumps(pending_actions, indent=2) if pending_actions else "None."}
+{json.dumps(pending_actions) if pending_actions else "None."}
 
-Respond with this exact JSON structure (fill all fields, use null or [] if data is unavailable). Prefer evidence-grounded bullets over vague statements; cite the upstream event_explanations verbatim when carrying them through. Never fabricate causes for price moves — if upstream analyst said cause is unclear, carry that forward.
+Respond with this exact JSON structure. Use null or [] when data is unavailable. Caps: summary_bullets <= 3, top_signals <= 5, reasoning_bullets <= 2 per signal, event_explanations bullets exactly 3, opportunities <= 3, tax_insights <= 3.
 
 {{
   "summary_bullets": ["bullet 1", "bullet 2", "bullet 3"],
@@ -280,7 +282,9 @@ Respond with this exact JSON structure (fill all fields, use null or [] if data 
     try:
         message = claude.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=4000,
+            # 2500 fits the trimmed digest envelope. Was 4000 before the
+            # 2026-04-26 trim; the new directives cap each section.
+            max_tokens=2500,
             messages=[{"role": "user", "content": prompt}],
         )
         text = message.content[0].text.strip()

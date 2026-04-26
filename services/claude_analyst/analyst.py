@@ -1,6 +1,6 @@
 """
 Claude Analyst Service
-Runs every 6 hours. Pulls market data, sends to Claude for analysis,
+Runs every 8 hours (3x/day). Pulls market data, sends to Claude for analysis,
 publishes structured signals back to Redis.
 
 Phase 1: Basic analysis using CoinGecko data.
@@ -131,12 +131,17 @@ def get_freqtrade_signals() -> dict:
     return signals
 
 
-def get_news_for_symbols(symbols: list[str], per_symbol_limit: int = 6) -> dict:
+def get_news_for_symbols(symbols: list[str], per_symbol_limit: int = 7) -> dict:
     """
     Pull recent news items per symbol from the news_collector service.
     Returns {symbol: [item, ...]} with up to `per_symbol_limit` of the most
     recent headlines per symbol — enough context for Claude to explain a move
     without blowing the token budget.
+
+    body_summary was dropped on 2026-04-26 after the post-enrichment token
+    spike: a 400-char summary per item × 7 items × ~10 symbols = ~28k chars
+    (~7k input tokens) per analyst run, and Claude was rarely citing the
+    summary verbatim — the headline + source carries the signal.
     """
     out = {}
     for sym in symbols:
@@ -155,7 +160,6 @@ def get_news_for_symbols(symbols: list[str], per_symbol_limit: int = 6) -> dict:
                 "source": it.get("source", ""),
                 "published_at": it.get("published_at", ""),
                 "sentiment": it.get("sentiment"),
-                "body_summary": it.get("body_summary"),
             })
         if trimmed:
             out[sym] = trimmed
@@ -174,27 +178,27 @@ def run_claude_analysis(market_data: dict, tv_signals: list, ft_signals: dict,
         if ch is not None and abs(ch) >= notable_threshold:
             notable_movers.append({"symbol": sym, "change_24h_pct": round(ch, 2)})
 
-    prompt = f"""You are a crypto market analyst for a DeFi portfolio system. Analyze the following data and provide trading signals. Cite specific evidence from the news feed when available — do not fabricate causes for price moves.
+    prompt = f"""You are a crypto market analyst for a DeFi portfolio system. Analyze the data and produce trading signals. Cite specific evidence from the news feed when available — do not fabricate causes for price moves.
 
 ## Market Data (as of {datetime.now(timezone.utc).isoformat()})
-{json.dumps(market_data, indent=2)}
+{json.dumps(market_data)}
 
 ## TradingView Technical Signals (last 20)
-{json.dumps(tv_signals, indent=2)}
+{json.dumps(tv_signals)}
 
 ## Freqtrade Strategy Signals
-{json.dumps(ft_signals, indent=2)}
+{json.dumps(ft_signals)}
 
 ## Recent News by Symbol (last 48h, from CryptoCompare)
-{json.dumps(news, indent=2) if news else "No news data available (news_collector service may be down or missing API keys)."}
+{json.dumps(news) if news else "No news data available (news_collector service may be down or missing API keys)."}
 
 ## Notable 24h Movers (>= {notable_threshold}% absolute)
-{json.dumps(notable_movers, indent=2) if notable_movers else "None today."}
+{json.dumps(notable_movers) if notable_movers else "None today."}
 
 ## Your Task
-For each asset in the market data, provide a structured signal with 2-4 evidence-grounded reasoning bullets. Prefer concrete citations ("CryptoCompare headline: 'X protocol halts withdrawals'" / "24h volume spike of Y%") over generic statements ("market sentiment is cautious"). If news is empty for a symbol, say so explicitly and note you're working from price/technicals alone.
+For each asset, produce a signal with 2-3 evidence-grounded reasoning bullets, each <= 120 chars. Cite concrete evidence ("CryptoCompare: 'X protocol halts withdrawals'" / "24h vol +Y%") over generic statements. If news is empty for a symbol, note "no news; price/technicals only."
 
-For each asset in `notable_movers`, add an entry to `event_explanations` with 3-5 bullets attempting to explain the move. If the news feed provides a clear driver, cite it. If it does not, say "Cause unclear from available data — candidate drivers include ..." rather than inventing one.
+For each `notable_movers` entry, add to `event_explanations` with exactly 3 bullets, each <= 120 chars. If the news feed provides a clear driver, cite it. Otherwise: "Cause unclear from available data — candidate drivers: ..." — never invent.
 
 Respond with ONLY valid JSON in this exact format:
 {{
@@ -240,7 +244,10 @@ If there are no notable movers, return an empty list for event_explanations.
     try:
         message = claude.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=4000,
+            # 2500 is enough headroom for ~12 symbols × ~3 bullets + event
+            # explanations + macro_notes, in compact JSON. Was 4000 before
+            # the 2026-04-26 trim.
+            max_tokens=2500,
             messages=[{"role": "user", "content": prompt}],
         )
         text = message.content[0].text.strip()
@@ -414,8 +421,11 @@ if __name__ == "__main__":
     # Wait for other services
     time.sleep(15)
 
-    # Run immediately, then every 6 hours
-    INTERVAL = 6 * 3600  # 6 hours
+    # Run immediately, then every 8 hours (3x/day).
+    # Dropped from 6h (4x/day) on 2026-04-26 after token usage tripled
+    # post-news-enrichment; 3 cycles still gives morning/afternoon/overnight
+    # coverage with 25% fewer Claude calls.
+    INTERVAL = 8 * 3600  # 8 hours
 
     while True:
         try:
